@@ -1,0 +1,11 @@
+.vscode/
+Library/
+Temp/
+ProjectSettings/
+Logs/
+Packages/
+UserSettings/
+Recordings/
+Assets/DamageNumbersPro/
+Assets/Plugins/
+*.meta
