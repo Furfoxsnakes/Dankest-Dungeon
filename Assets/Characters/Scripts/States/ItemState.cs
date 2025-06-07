@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class ItemState : CharacterState
 {
-    private Character target; // Target of the item, can be null
-    private const string ITEM_ANIMATION = "Item"; // Ensure this matches your Animator state name for item use
+    private Character target; 
+    private const string ITEM_ANIMATION_TRIGGER = "Item";
 
     public ItemState(Character character, Character target) : base(character)
     {
@@ -12,29 +12,30 @@ public class ItemState : CharacterState
 
     public override void Enter()
     {
-        Debug.Log($"[ITEM_STATE] {owner.GetName()} entering ItemState (targeting: {target?.GetName() ?? "self/area"}).");
-        owner.PlayAnimation(Character.AnimationType.Item);
-
-        owner.RegisterAnimationCallback(() => {
-            Debug.Log($"[ITEM_STATE] {owner.GetName()}'s item use animation finished. Completing state.");
-            Complete(CharacterEvent.ItemComplete);
-        });
+        base.Enter();
+        Debug.Log($"[STATE] {owner.GetName()} entering ItemState (targeting: {target?.GetName() ?? "self/area"}).");
 
         if (owner.characterAnimator != null)
         {
-            owner.characterAnimator.Play(ITEM_ANIMATION);
+            owner.characterAnimator.SetTrigger(ITEM_ANIMATION_TRIGGER);
+            Debug.Log($"[STATE] {owner.GetName()} triggered '{ITEM_ANIMATION_TRIGGER}' animation.");
+
+            owner.RegisterAnimationCallback(() => {
+                Debug.Log($"<color=green>[STATE] {owner.GetName()} ItemUse animation complete (via callback). Completing with event.</color>");
+                Complete(CharacterEvent.ItemComplete);
+            });
         }
         else
         {
-            Debug.LogWarning($"[ITEM_STATE] {owner.GetName()} has no animator. Completing item state immediately.");
+            Debug.LogWarning($"[STATE] {owner.GetName()} in ItemState has no Animator. Completing with event immediately.");
             Complete(CharacterEvent.ItemComplete);
         }
-        // Applying item effects is moved to CombatSystem after this animation.
     }
 
     public override void Exit()
     {
-        Debug.Log($"[ITEM_STATE] {owner.GetName()} exiting ItemState.");
-        owner.RegisterAnimationCallback(null);
+        base.Exit();
+        owner.ClearAnimationCallback();
+        Debug.Log($"[STATE] {owner.GetName()} exiting ItemState.");
     }
 }

@@ -13,7 +13,7 @@ public class AggressiveAI : AIBehaviorSO
     public override BattleAction DecideAction(Character self, List<Character> allies, List<Character> enemies)
     {
         // Find valid targets
-        var aliveTargets = enemies.FindAll(t => t.IsAlive());
+        var aliveTargets = enemies.FindAll(t => t.IsAlive);
         if (aliveTargets.Count == 0) return null;
         
         // Target selection - focus on lowest health enemy
@@ -23,7 +23,7 @@ public class AggressiveAI : AIBehaviorSO
         if (Random.Range(0, 100) < magicChance && self.GetMagicPower() > 0)
         {
             string spell = spells[Random.Range(0, spells.Length)];
-            return new BattleAction(self, target, spell);
+            return new BattleAction(self, target, ActionType.Magic);
         }
         else
         {

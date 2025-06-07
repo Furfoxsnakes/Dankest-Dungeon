@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc75f6ac16fa84a4b9a2da18b5ff68f0, type: 3}
+  m_Name: Defend
+  m_EditorClassIdentifier: 
+  skillId: 284d6a00-83d5-4978-9f90-ba48c54619d4
+  skillNameKey: Defend
+  editorBaseDescriptionPreview: Raises your defense until the start of your next
+    turn.
+  icon: {fileID: 358499579361504467, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
+  animationType: 6
+  targetType: 1
+  launchPositions: 00000000010000000200000003000000
+  targetPositions: 
+  ranks:
+  - rankLevel: 1
+    rankDescriptionKey: 
+    editorDescriptionPreview: 
+    manaCost: 0
+    cooldown: 0
+    accuracyMod: 0
+    critMod: 0
+    effects:
+    - effectType: 2
+      baseValue: 0
+      scalingStat: 0
+      scalingMultiplier: 1
+      duration: 1
+      statToModify: 4
+      chance: 1

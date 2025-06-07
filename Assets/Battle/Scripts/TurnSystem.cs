@@ -38,13 +38,13 @@ public class TurnSystem : MonoBehaviour
         currentActor = turnOrder.Dequeue();
         
         // Skip dead characters
-        while (!currentActor.IsAlive() && turnOrder.Count > 0)
+        while (!currentActor.IsAlive && turnOrder.Count > 0)
         {
             currentActor = turnOrder.Dequeue();
         }
         
         // If all characters in queue are dead, reset turn order and try again
-        if (!currentActor.IsAlive())
+        if (!currentActor.IsAlive)
         {
             ResetTurnOrder();
             return GetNextActor();
@@ -60,7 +60,7 @@ public class TurnSystem : MonoBehaviour
         
         // Sort characters by speed (higher goes first)
         var sortedCharacters = allCharacters
-            .Where(c => c.IsAlive())
+            .Where(c => c.IsAlive)
             .OrderByDescending(c => c.Stats.speed)  // Direct access to speed stat
             .ToList();
             

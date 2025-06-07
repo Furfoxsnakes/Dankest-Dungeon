@@ -1,54 +1,54 @@
 using UnityEngine;
-using System;
+using DankestDungeon.Skills;
+using System.Collections.Generic;
+using System.Linq;
+using System.Collections;
 
 public class ActionExecutionState : BattleState
 {
-    private BattleAction actionToExecute;
-    private bool combatSystemCallbackReceived = false;
+    private BattleAction currentAction;
+    private CombatSystem combatSystem;
+    private bool _executionComplete = false;
 
     public ActionExecutionState(BattleManager manager, BattleAction action) : base(manager)
     {
-        this.actionToExecute = action;
+        this.currentAction = action;
+        this.combatSystem = manager.GetCombatSystem();
+        if (combatSystem == null) Debug.LogError("CombatSystem not found for ActionExecutionState.");
     }
 
     public override void Enter()
     {
-        Debug.Log($"<color=yellow>[BATTLE_EXEC_STATE] Entering. Executing: {actionToExecute.ActionType} by {actionToExecute.Actor.GetName()} on {actionToExecute.Target?.GetName() ?? "self"}</color>");
-        combatSystemCallbackReceived = false;
+        _executionComplete = false;
+        Debug.Log($"<color=green>Action Execution: Enter. Actor: {currentAction.Actor.GetName()}, ActionType: {currentAction.ActionType}, Skill: {currentAction.UsedSkill?.skillNameKey}</color>");
 
-        if (actionToExecute.Actor == null || !actionToExecute.Actor.IsAlive())
+        if (currentAction.Actor == null || !currentAction.Actor.IsAlive)
         {
-            Debug.LogWarning($"<color=yellow>[BATTLE_EXEC_STATE] Actor {actionToExecute.Actor?.GetName()} is null or not alive. Skipping action.</color>");
-            Complete(BattleEvent.ActionFullyComplete); // Signal completion to move on
+            Debug.LogWarning($"Actor {currentAction.Actor?.GetName()} is null or not alive. Skipping action.");
+            _executionComplete = true;
             return;
         }
         
-        // If target is required and not alive (and not self-target action)
-        if (actionToExecute.Target != null && !actionToExecute.Target.IsAlive() && actionToExecute.ActionType != ActionType.Defend) // Defend doesn't need a live target
-        {
-            Debug.LogWarning($"<color=yellow>[BATTLE_EXEC_STATE] Target {actionToExecute.Target.GetName()} is not alive. Skipping action.</color>");
-            Complete(BattleEvent.ActionFullyComplete); // Signal completion to move on
-            return;
-        }
+        // Delegate to CombatSystem for all action execution
+        combatSystem.ExecuteAction(currentAction, OnActionComplete);
+    }
 
-        battleManager.GetCombatSystem().ExecuteAction(actionToExecute, () => {
-            Debug.Log($"<color=green>[BATTLE_EXEC_STATE] CombatSystem reported action complete for {actionToExecute.Actor.GetName()}.</color>");
-            combatSystemCallbackReceived = true;
-        });
+    private void OnActionComplete()
+    {
+        Debug.Log("<color=green>Action execution completed</color>");
+        _executionComplete = true;
     }
 
     public override void Update()
     {
-        if (combatSystemCallbackReceived)
+        if (_executionComplete)
         {
-            Debug.Log($"<color=yellow>[BATTLE_EXEC_STATE] Combat system callback received. Completing state.</color>");
-            Complete(BattleEvent.ActionFullyComplete);
+            Complete(BattleEvent.ActionFullyComplete, null);
         }
-        // Optional: Add a timeout here if CombatSystem might get stuck
     }
 
     public override void Exit()
     {
-        Debug.Log($"<color=yellow>[BATTLE_EXEC_STATE] Exiting.</color>");
+        Debug.Log("<color=green>Action Execution: Exit</color>");
     }
 }

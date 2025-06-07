@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using DankestDungeon.Skills; // For SkillDefinitionSO
 
 public class BattleManager : MonoBehaviour
 {
@@ -40,6 +41,8 @@ public class BattleManager : MonoBehaviour
     public CombatSystem GetCombatSystem() => combatSystem;
     
     public FormationManager GetFormationManager() => formationManager;
+
+    public UIManager uiManager; // Make sure this is assigned or found correctly if BattleUI is on UIManager
     
     public FormationData GetPlayerFormation() => playerFormation;
     
@@ -49,7 +52,35 @@ public class BattleManager : MonoBehaviour
     
     public List<Character> GetEnemyCharacters() => enemyCharacters ?? new List<Character>();
     
-    public BattleUI GetBattleUI() => battleUI; // Getter for BattleUI
+    public BattleUI GetBattleUI()
+    {
+        if (battleUI != null) return battleUI;
+        if (uiManager != null && uiManager.battleUI != null) return uiManager.battleUI;
+        
+        // Fallback: Try to find BattleUI in the scene directly if not assigned
+        // This assumes BattleUI component is on a GameObject named "BattleUI" or similar, or just one instance exists.
+        BattleUI foundBattleUI = FindFirstObjectByType<BattleUI>();
+        if (foundBattleUI != null) {
+            battleUI = foundBattleUI; // Cache it
+            return battleUI;
+        }
+
+        Debug.LogError("BattleUI could not be found or accessed through BattleManager or UIManager!");
+        return null;
+    }
+
+    // Method for BattleUI to inform PlayerTurnState about action type selection - REMOVED
+    // public void PlayerSelectedActionType(ActionType actionType)
+    // {
+    //     if (stateMachine.CurrentState is PlayerTurnState playerTurnState)
+    //     {
+    //         // playerTurnState.PlayerChoseActionType(actionType); // This method would also be removed from PlayerTurnState
+    //     }
+    //     else
+    //     {
+    //         Debug.LogWarning($"PlayerSelectedActionType called but current state is not PlayerTurnState. Current state: {stateMachine.CurrentState?.GetType().Name}");
+    //     }
+    // }
     
     void Start()
     {
@@ -74,7 +105,7 @@ public class BattleManager : MonoBehaviour
     
     private void HandleStateResult(BattleEvent battleEvent, object data = null)
     {
-        Debug.Log($"<color=orange>[BATTLE MANAGER] Handling event: {battleEvent}</color>");
+        Debug.Log($"<color=orange>[BATTLE MANAGER] Handling event: {battleEvent} with data: {data?.GetType().Name ?? "null"}</color>");
 
         switch (battleEvent)
         {
@@ -83,40 +114,95 @@ public class BattleManager : MonoBehaviour
                 stateMachine.ChangeState(new PlayerTurnState(this));
                 break;
                 
-            case BattleEvent.PlayerActionSelected:
-                Debug.Log("<color=orange>[BATTLE MANAGER] Player action selected, preparing to execute action.</color>");
-                // Get the action details from PlayerTurnState or a shared context if needed
-                // For now, let's assume ExecuteSelectedAction can determine the action.
-                // We need to pass the determined action to ActionExecutionState.
-                
-                // Determine the action first
-                Character attacker = turnSystem.GetCurrentActor();
-                var aliveEnemies = enemyCharacters.FindAll(e => e.IsAlive());
-                if (aliveEnemies.Count == 0) {
-                    Debug.LogWarning("[BATTLE MANAGER] No alive enemies to target for player action.");
-                    AdvanceTurn(); // Or handle appropriately
-                    return;
-                }
-                Character target = aliveEnemies[Random.Range(0, aliveEnemies.Count)];
-                BattleAction actionToExecute = new BattleAction(attacker, target, ActionType.Attack); // Example
+            // case BattleEvent.PlayerActionSelected: // This case is now obsolete if all actions are skills
+            //     if (data is ActionType actionType)
+            //     {
+            //         Character currentActor = turnSystem.GetCurrentActor();
+            //         Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected action type: {actionType}. Actor: {currentActor.GetName()}</color>");
+            //         if (actionType == ActionType.Defend) 
+            //         {
+            //             BattleAction defendAction = new BattleAction(currentActor, currentActor, ActionType.Defend);
+            //             stateMachine.ChangeState(new ActionExecutionState(this, defendAction));
+            //         }
+            //         // ... other non-skill actions
+            //     }
+            //     break;
 
-                stateMachine.ChangeState(new ActionExecutionState(this, actionToExecute)); // Pass the action
+            case BattleEvent.PlayerSkillSelected: 
+                if (data is SkillDefinitionSO selectedSkill)
+                {
+                    Character currentActor = turnSystem.GetCurrentActor();
+                    if (currentActor == null || !currentActor.IsAlive)
+                    {
+                        Debug.LogError($"[BATTLE MANAGER] PlayerSkillSelected: Current actor is null or dead. Skipping.");
+                        AdvanceTurn();
+                        break;
+                    }
+                    int skillRank = currentActor.GetSkillRank(selectedSkill);
+
+                    if (skillRank == 0) {
+                        Debug.LogError($"[BATTLE MANAGER] Actor {currentActor.GetName()} does not know skill {selectedSkill.skillNameKey} or rank is 0. UI should prevent this.");
+                        stateMachine.ChangeState(new PlayerTurnState(this)); 
+                        break;
+                    }
+                    
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected skill: {selectedSkill.skillNameKey} (Rank {skillRank}) by {currentActor.GetName()}.</color>");
+
+                    bool needsTargeting = selectedSkill.targetType == SkillTargetType.SingleEnemy ||
+                                          selectedSkill.targetType == SkillTargetType.SingleAlly ||
+                                          selectedSkill.targetType == SkillTargetType.EnemyRow || 
+                                          selectedSkill.targetType == SkillTargetType.AllyRow;   
+
+                    if (needsTargeting)
+                    {
+                        BattleAction actionInProgress = new BattleAction(currentActor, selectedSkill, skillRank);
+                        stateMachine.ChangeState(new TargetSelectionState(this, actionInProgress));
+                    }
+                    else 
+                    {
+                        BattleAction skillAction = new BattleAction(currentActor, null, selectedSkill, skillRank); 
+                        stateMachine.ChangeState(new ActionExecutionState(this, skillAction));
+                    }
+                }
+                else
+                {
+                    Debug.LogError("[BATTLE MANAGER] PlayerSkillSelected event did not provide a SkillDefinitionSO.");
+                    stateMachine.ChangeState(new PlayerTurnState(this)); 
+                }
                 break;
-                
-            case BattleEvent.EnemyActionComplete: // This case might also need to go through ActionExecutionState
-                Debug.Log("<color=orange>[BATTLE MANAGER] Enemy action selected, preparing to execute action.</color>");
+
+            case BattleEvent.TargetSelected: 
+                if (data is BattleAction actionWithTarget)
+                {
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Target selected. Action: {actionWithTarget.ActionType} by {actionWithTarget.Actor.GetName()} on {actionWithTarget.Target?.GetName()}. Skill: {actionWithTarget.UsedSkill?.skillNameKey}. Transitioning to ActionExecutionState.</color>");
+                    stateMachine.ChangeState(new ActionExecutionState(this, actionWithTarget));
+                }
+                else
+                {
+                    Debug.LogError("[BATTLE MANAGER] TargetSelected event did not provide a BattleAction.");
+                    stateMachine.ChangeState(new PlayerTurnState(this));
+                }
+                break;
+
+            case BattleEvent.TargetSelectionCancelled: 
+                Debug.Log("<color=orange>[BATTLE MANAGER] Target selection cancelled. Returning to Player Turn.</color>");
+                stateMachine.ChangeState(new PlayerTurnState(this));
+                break;
+
+            case BattleEvent.EnemyActionComplete: 
                 if (data is BattleAction enemyAction)
                 {
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Enemy action decided: {enemyAction.ActionType} by {enemyAction.Actor.GetName()} on {enemyAction.Target?.GetName()}. Transitioning to ActionExecutionState.</color>");
                     stateMachine.ChangeState(new ActionExecutionState(this, enemyAction));
                 }
                 else
                 {
-                    Debug.LogError("[BATTLE MANAGER] EnemyActionComplete event did not provide a BattleAction.");
-                    AdvanceTurn();
+                    Debug.LogError("[BATTLE MANAGER] EnemyActionComplete event did not provide a BattleAction. Advancing turn to prevent stall.");
+                    AdvanceTurn(); 
                 }
                 break;
-                
-            case BattleEvent.ActionFullyComplete: // This event is now signaled by ActionExecutionState
+
+            case BattleEvent.ActionFullyComplete: 
                 Debug.Log("<color=orange>[BATTLE MANAGER] ★★★ Action fully completed (from ActionExecutionState), checking battle state ★★★</color>");
                 CheckBattleState();
                 break;
@@ -155,12 +241,12 @@ public class BattleManager : MonoBehaviour
     
     private bool AllEnemiesDefeated()
     {
-        return enemyCharacters.All(e => !e.IsAlive());
+        return enemyCharacters.All(e => !e.IsAlive);
     }
     
     private bool AllPlayersDefeated()
     {
-        return playerCharacters.All(p => !p.IsAlive());
+        return playerCharacters.All(p => !p.IsAlive);
     }
     
     private void ReturnToMap()

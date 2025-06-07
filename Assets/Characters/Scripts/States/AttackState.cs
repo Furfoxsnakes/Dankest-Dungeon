@@ -2,8 +2,7 @@ using UnityEngine;
 
 public class AttackState : CharacterState
 {
-    private Character target; // Still useful for aiming or specific attack animations
-    private const string ATTACK_ANIMATION = "Attack";
+    private Character target;
 
     public AttackState(Character character, Character target) : base(character)
     {
@@ -12,24 +11,35 @@ public class AttackState : CharacterState
 
     public override void Enter()
     {
-        Debug.Log($"[ATTACK_STATE] {owner.GetName()} entering AttackState, targeting {target.GetName()}.");
-        owner.PlayAnimation(Character.AnimationType.Attack);
+        base.Enter();
+        Debug.Log($"[STATE] {owner.GetName()} entered AttackState. Target: {target?.GetName() ?? "None"}");
 
-        // Register a callback for THIS state to know when ITS animation is done.
-        // This is separate from the CombatSystem's callback.
-        owner.RegisterAnimationCallback(() => {
-            Debug.Log($"[ATTACK_STATE] {owner.GetName()}'s attack animation finished. Completing state.");
+        if (owner.characterAnimator != null)
+        {
+            owner.characterAnimator.SetTrigger("Attack");
+            Debug.Log($"[STATE] {owner.GetName()} triggered 'Attack' animation.");
+
+            owner.RegisterAnimationCallback(() => {
+                Debug.Log($"<color=green>[STATE] {owner.GetName()} Attack animation complete (via callback). Completing with event.</color>");
+                Complete(CharacterEvent.AttackComplete);
+            });
+        }
+        else
+        {
+            Debug.LogWarning($"[STATE] {owner.GetName()} in AttackState has no Animator. Completing with event immediately.");
             Complete(CharacterEvent.AttackComplete);
-        });
-
-        owner.characterAnimator.Play(ATTACK_ANIMATION);
+        }
     }
-
-    // ApplyDamage method is removed from here. CombatSystem handles it.
 
     public override void Exit()
     {
-        Debug.Log($"[ATTACK_STATE] {owner.GetName()} exiting AttackState.");
-        owner.RegisterAnimationCallback(null); // Clean up the callback this state registered.
+        base.Exit();
+        owner.ClearAnimationCallback(); 
+        Debug.Log($"[STATE] {owner.GetName()} exited AttackState.");
+    }
+
+    public override void Update()
+    {
+        base.Update();
     }
 }

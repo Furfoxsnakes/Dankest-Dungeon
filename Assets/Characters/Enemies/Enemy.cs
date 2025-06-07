@@ -35,7 +35,7 @@ public class Enemy : Character
     private BattleAction GetDefaultAction(List<Character> possibleTargets)
     {
         // Simple fallback AI - target random enemy with basic attack
-        var aliveTargets = possibleTargets.FindAll(t => t.IsAlive());
+        var aliveTargets = possibleTargets.FindAll(t => t.IsAlive);
         if (aliveTargets.Count == 0) return null;
         
         Character target = aliveTargets[UnityEngine.Random.Range(0, aliveTargets.Count)];

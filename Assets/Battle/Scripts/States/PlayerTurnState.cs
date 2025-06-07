@@ -1,78 +1,86 @@
 using UnityEngine;
+using DankestDungeon.Skills; // For SkillDefinitionSO
 
 public class PlayerTurnState : BattleState
 {
-    private bool actionSelected = false;
+    private bool skillHasBeenSelected = false; // Renamed for clarity
+    private SkillDefinitionSO currentSelectedSkill;
     private Character activeCharacter;
     private BattleUI battleUI;
-    
+
     public PlayerTurnState(BattleManager manager) : base(manager) 
     {
-        // Get reference from the battle manager instead of finding it
-        battleUI = manager.GetBattleUI();
+        battleUI = manager.GetBattleUI(); // battleUI should be cached by BattleManager
+        if (battleUI == null) Debug.LogError("BattleUI not found for PlayerTurnState via BattleManager.");
     }
     
     public override void Enter()
     {
-        Debug.Log("Entering Player Turn state");
-        actionSelected = false;
-        
-        // Get the current active character
+        Debug.Log("<color=cyan>Player Turn: Enter</color>");
+        skillHasBeenSelected = false;
+        currentSelectedSkill = null;
         activeCharacter = battleManager.GetTurnSystem().GetCurrentActor();
-        
-        // Show the indicator above the active character
+
+        if (activeCharacter == null || !activeCharacter.IsAlive)
+        {
+            Debug.LogWarning($"PlayerTurnState: Active character {activeCharacter?.GetName()} is null or not alive. Advancing turn.");
+            Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
+            return;
+        }
+
         if (battleUI != null)
         {
             battleUI.ShowActiveCharacterIndicator(activeCharacter);
-        }
-        
-        // Set up input handling
-        if (InputManager.Instance != null)
-        {
-            InputManager.OnSubmitPerformed += OnSubmitPerformed;
-            InputManager.Instance.EnableBattleActions();
+            battleUI.ShowSkillButtons(activeCharacter, OnPlayerChoseSkill); // Pass the callback
         }
         else
         {
-            Debug.LogError("InputManager singleton not found in scene");
+            Debug.LogError("BattleUI is null in PlayerTurnState.Enter. Cannot show skill buttons.");
+            Complete(BattleEvent.ActionFullyComplete, null); // Skip turn if UI fails
         }
     }
-    
-    private void OnSubmitPerformed()
+
+    // Callback for when a skill button is pressed in the UI
+    public void OnPlayerChoseSkill(SkillDefinitionSO skill)
     {
-        // Hide the indicator when action is selected
+        if (skillHasBeenSelected) return; // Already chose a skill this turn
+
+        Debug.Log($"<color=cyan>PlayerTurnState: Skill '{skill.skillNameKey}' chosen by {activeCharacter.GetName()}.</color>");
+        currentSelectedSkill = skill;
+        skillHasBeenSelected = true; 
+
         if (battleUI != null)
         {
-            battleUI.HideActiveCharacterIndicator();
+            battleUI.HideActionButtons(); // Hide buttons once skill is chosen
         }
-        
-        Debug.Log("Submit action performed");
-        actionSelected = true;
     }
     
     public override void Exit()
     {
-        // Ensure indicator is hidden when leaving this state
+        Debug.Log("<color=cyan>Player Turn: Exit</color>");
         if (battleUI != null)
         {
-            battleUI.HideActiveCharacterIndicator();
-        }
-        
-        // Clean up event subscriptions
-        InputManager.OnSubmitPerformed -= OnSubmitPerformed;
-        
-        if (InputManager.Instance != null)
-        {
-            InputManager.Instance.DisableBattleActions();
+            // Buttons should be hidden by OnPlayerChoseSkill or if state exits prematurely
+            // battleUI.HideActionButtons(); 
+            // Indicator hiding is usually handled by the state that no longer needs it or the one that takes over.
         }
     }
     
     public override void Update()
     {
-        // Check if player has selected an action
-        if (actionSelected)
+        if (skillHasBeenSelected)
         {
-            Complete(BattleEvent.PlayerActionSelected);
+            if (currentSelectedSkill == null)
+            {
+                 Debug.LogError("PlayerTurnState: skillHasBeenSelected is true, but currentSelectedSkill is null. This should not happen.");
+                 Complete(BattleEvent.ActionFullyComplete, null); // Error case, skip turn
+                 return;
+            }
+            // Pass the chosen SkillDefinitionSO to BattleManager
+            Complete(BattleEvent.PlayerSkillSelected, currentSelectedSkill);
         }
+        // Handle cancel input if player can back out of skill selection (e.g., to view character stats)
+        // This would typically re-show the skill buttons or go to a "command menu" state.
+        // For now, once skill is selected, it proceeds.
     }
 }

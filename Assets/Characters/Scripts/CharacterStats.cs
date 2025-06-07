@@ -19,6 +19,8 @@ public class CharacterStats : ScriptableObject
     public int accuracy = 90; // Percentage, affects hit chance
     public int evasion = 5;   // Percentage, affects dodge chance
     public int speed = 10;    // Affects turn order
+    public int criticalChance = 5; // Percentage, chance to deal critical damage
+    public int criticalDamageMultiplier = 150; // Percentage, e.g., 150 means 1.5x damage on crit
     
     [Header("Character Traits")]
     public CharacterClass characterClass;

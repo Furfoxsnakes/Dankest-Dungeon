@@ -19,7 +19,7 @@ public class DefensiveAI : AIBehaviorSO
         }
         
         // Otherwise, find a target and attack
-        var aliveTargets = enemies.FindAll(t => t.IsAlive());
+        var aliveTargets = enemies.FindAll(t => t.IsAlive);
         if (aliveTargets.Count == 0) return null;
         
         // Just pick a random target
