@@ -3,7 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DankestDungeon.Skills;
-using System.Linq; // For SkillEffectData, StatType, etc.
+using System.Linq; // Make sure LINQ is included
+using Random = UnityEngine.Random; // Use Unity's Random for consistency
 
 
 public class CombatSystem : MonoBehaviour
@@ -14,6 +15,10 @@ public class CombatSystem : MonoBehaviour
     private List<Character> playerCharacters;
     private List<Character> enemyCharacters;
     
+    // These should be populated by BattleManager or another central system
+    private List<Character> _playerTeamCharacters;
+    private List<Character> _enemyTeamCharacters;
+
     private void Awake()
     {
         if (skillProcessor == null)
@@ -29,6 +34,12 @@ public class CombatSystem : MonoBehaviour
         
         foreach (var character in players) { ValidateCharacter(character, "Player"); }
         foreach (var character in enemies) { ValidateCharacter(character, "Enemy"); }
+    }
+
+    public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
+    {
+        _playerTeamCharacters = playerTeam;
+        _enemyTeamCharacters = enemyTeam;
     }
     
     private void ValidateCharacter(Character character, string type)
@@ -269,16 +280,18 @@ public class CombatSystem : MonoBehaviour
         }
         
         SkillRankData currentRankData = skill.ranks[rankIndex];
-        // Determine primary target for the animation/state, if applicable.
-        // For multi-target skills, the animation might still be directed at the 'primary' selected target,
-        // or it could be a generic animation not needing a specific target.
-        Character primaryTargetForAnimation = action.Target; // Use the action's primary target for the animation state
+        Character primaryTargetForAnimation = action.Target;
 
-        List<Character> finalEffectTargets = DetermineFinalTargets(actor, action.Target, skill.targetType);
+        // MODIFIED CALL HERE: Pass the 'skill' (SkillDefinitionSO) instead of 'skill.targetType'
+        // This will call your newer, context-aware DetermineFinalTargets method.
+        List<Character> finalEffectTargets = DetermineFinalTargets(actor, action.Target, skill);
 
         if (finalEffectTargets.Count == 0 && skill.targetType != SkillTargetType.Self && skill.targetType != SkillTargetType.None)
         {
             Debug.Log($"Skill {skill.skillNameKey} by {actor.GetName()} has no valid targets to affect.");
+            // It's possible the animation still plays if it's non-targeted,
+            // but effects won't apply. Consider if onComplete should be called here or after animation.
+            // For now, let's assume if no effect targets, the core of the skill fails.
             onComplete?.Invoke();
             yield break;
         }
@@ -288,7 +301,6 @@ public class CombatSystem : MonoBehaviour
         // Step 1: Play caster's skill animation
         if (skill.animationType != AnimationType.None)
         {
-            // Pass the primary target if the animation type might need it for state setup (e.g., AttackState, MagicCastState)
             actor.PlayAnimation(skill.animationType, primaryTargetForAnimation);
             yield return new WaitUntil(() => actor.GetCurrentState() is IdleState);
             Debug.Log($"[COMBAT] {actor.GetName()} completed {skill.animationType} animation for skill {skill.skillNameKey}");
@@ -297,12 +309,9 @@ public class CombatSystem : MonoBehaviour
         // Step 2: Process each effect for each target
         foreach (SkillEffectData effectData in currentRankData.effects)
         {
-            // Determine targets for THIS specific effect, which might differ from the primary animation target
-            // For simplicity, we're using finalEffectTargets determined earlier.
-            // More complex skills might have per-effect targeting.
             foreach (Character effectTarget in finalEffectTargets)
             {
-                if (effectTarget != null && effectTarget.IsAlive) // Use IsAlive property
+                if (effectTarget != null && effectTarget.IsAlive) 
                 {
                     if (UnityEngine.Random.value > effectData.chance)
                     {
@@ -438,72 +447,107 @@ public class CombatSystem : MonoBehaviour
         return damage;
     }
 
-    private List<Character> DetermineFinalTargets(Character actor, Character primaryTarget, SkillTargetType skillTargetType)
+    private List<Character> DetermineFinalTargets(Character actor, Character primaryTarget, SkillDefinitionSO skill)
     {
-        List<Character> potentialTargets = new List<Character>();
-        List<Character> alivePlayers = playerCharacters.Where(p => p != null && p.IsAlive).ToList(); // Use IsAlive property
-        List<Character> aliveEnemies = enemyCharacters.Where(e => e != null && e.IsAlive).ToList(); // Use IsAlive property
-
-        switch (skillTargetType)
+        List<Character> finalTargets = new List<Character>();
+        if (skill == null || actor == null)
         {
-            case SkillTargetType.Self:
-                if (actor != null && actor.IsAlive) potentialTargets.Add(actor); // Use IsAlive property
-                break;
+            Debug.LogError("[TARGETING] Skill or Actor is null.");
+            return finalTargets;
+        }
 
+        if (_playerTeamCharacters == null || _enemyTeamCharacters == null)
+        {
+            Debug.LogError("[TARGETING] Teams not initialized in CombatSystem.");
+            return finalTargets;
+        }
+
+        List<Character> actorAllies;
+        List<Character> actorOpponents;
+
+        // Determine actor's faction and define allies/opponents accordingly
+        if (_playerTeamCharacters.Contains(actor))
+        {
+            actorAllies = _playerTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
+            actorOpponents = _enemyTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
+        }
+        else if (_enemyTeamCharacters.Contains(actor))
+        {
+            actorAllies = _enemyTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
+            actorOpponents = _playerTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
+        }
+        else
+        {
+            Debug.LogError($"[TARGETING] Actor {actor.GetName()} not found in any initialized team!");
+            return finalTargets;
+        }
+
+        switch (skill.targetType)
+        {
             case SkillTargetType.SingleEnemy:
-                if (primaryTarget != null && primaryTarget.IsAlive && aliveEnemies.Contains(primaryTarget))
-                    potentialTargets.Add(primaryTarget);
-                // Fallback: if primary target is invalid but enemies exist, pick a random one (optional)
-                else if (aliveEnemies.Any())
+                if (primaryTarget != null && primaryTarget.IsAlive && actorOpponents.Contains(primaryTarget))
                 {
-                    Debug.LogWarning($"[TARGETING] SingleEnemy skill by {actor.GetName()} had invalid primary target. Targeting random enemy.");
-                    potentialTargets.Add(aliveEnemies[UnityEngine.Random.Range(0, aliveEnemies.Count)]);
+                    finalTargets.Add(primaryTarget);
                 }
-                break;
-
-            case SkillTargetType.SingleAlly:
-                if (primaryTarget != null && primaryTarget.IsAlive && alivePlayers.Contains(primaryTarget))
-                    potentialTargets.Add(primaryTarget);
-                // Fallback for allies (optional)
-                else if (alivePlayers.Any())
+                else
                 {
-                     Debug.LogWarning($"[TARGETING] SingleAlly skill by {actor.GetName()} had invalid primary target. Targeting random ally.");
-                    potentialTargets.Add(alivePlayers[UnityEngine.Random.Range(0, alivePlayers.Count)]);
+                    // Fallback: pick a random opponent if primary target is invalid
+                    if (actorOpponents.Any())
+                    {
+                        Debug.LogWarning($"[TARGETING] SingleEnemy skill by {actor.GetName()} had invalid primary target. Targeting random enemy.");
+                        finalTargets.Add(actorOpponents[Random.Range(0, actorOpponents.Count)]);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[TARGETING] SingleEnemy skill by {actor.GetName()} has no valid targets.");
+                    }
                 }
                 break;
 
             case SkillTargetType.AllEnemies:
-                potentialTargets.AddRange(aliveEnemies);
+                finalTargets.AddRange(actorOpponents);
+                break;
+
+            case SkillTargetType.SingleAlly:
+                if (primaryTarget != null && primaryTarget.IsAlive && actorAllies.Contains(primaryTarget))
+                {
+                    finalTargets.Add(primaryTarget);
+                }
+                else
+                {
+                    // Fallback: pick a random ally if primary target is invalid
+                    if (actorAllies.Any())
+                    {
+                         Debug.LogWarning($"[TARGETING] SingleAlly skill by {actor.GetName()} had invalid primary target. Targeting random ally.");
+                        finalTargets.Add(actorAllies[Random.Range(0, actorAllies.Count)]);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[TARGETING] SingleAlly skill by {actor.GetName()} has no valid targets.");
+                    }
+                }
                 break;
 
             case SkillTargetType.AllAllies:
-                potentialTargets.AddRange(alivePlayers);
+                finalTargets.AddRange(actorAllies);
                 break;
 
-            case SkillTargetType.RandomEnemy:
-                if (aliveEnemies.Any())
-                    potentialTargets.Add(aliveEnemies[UnityEngine.Random.Range(0, aliveEnemies.Count)]);
+            case SkillTargetType.Self:
+                if (actor.IsAlive)
+                {
+                    finalTargets.Add(actor);
+                }
                 break;
 
-            case SkillTargetType.RandomAlly:
-                if (alivePlayers.Any())
-                    potentialTargets.Add(alivePlayers[UnityEngine.Random.Range(0, alivePlayers.Count)]);
+            case SkillTargetType.None:
+                // No specific targets needed, but skill might still affect areas or global state.
                 break;
-            
-            // TODO: Implement Row targeting if you have a FormationManager or similar system
-            // case SkillTargetType.EnemyRow:
-            // case SkillTargetType.AllyRow:
-            //    // This would require knowing character positions/rows
-            //    break;
 
             default:
-                Debug.LogWarning($"[TARGETING] Unhandled SkillTargetType: {skillTargetType}. Defaulting to primary target if valid.");
-                if (primaryTarget != null && primaryTarget.IsAlive)
-                    potentialTargets.Add(primaryTarget);
+                Debug.LogError($"[TARGETING] Unhandled SkillTargetType: {skill.targetType} for skill {skill.skillNameKey}");
                 break;
         }
-        // Ensure all targets are distinct and still alive (double check)
-        return potentialTargets.Where(t => t != null && t.IsAlive).Distinct().ToList(); // Use IsAlive property
+        return finalTargets;
     }
 
     // ... rest of CombatSystem methods ...

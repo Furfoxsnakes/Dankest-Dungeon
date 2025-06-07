@@ -266,6 +266,17 @@ public class BattleManager : MonoBehaviour
     {
         playerCharacters = players;
         enemyCharacters = enemies;
+
+        // Initialize the CombatSystem with the team lists
+        if (combatSystem != null)
+        {
+            combatSystem.InitializeTeams(playerCharacters, enemyCharacters);
+            Debug.Log("[BATTLE MANAGER] Character lists set and CombatSystem initialized with teams.");
+        }
+        else
+        {
+            Debug.LogError("[BATTLE MANAGER] CombatSystem is null. Cannot initialize teams for contextual targeting.");
+        }
     }
 
     private void OnValidate()
