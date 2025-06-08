@@ -1,16 +1,6 @@
 using System;
 
-/// <summary>
-/// Interface for states that can produce results
-/// </summary>
-public interface IState
-{
-    void Enter();
-    void Exit();
-    void Update();
-    bool IsComplete { get; }
-    object Result { get; }
-}
+// IState interface definition has been moved to IState.cs
 
 /// <summary>
 /// Generic state machine that handles state transitions based on results

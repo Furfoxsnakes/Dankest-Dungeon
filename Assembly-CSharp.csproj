@@ -57,6 +57,7 @@
     <Compile Include="Assets\Characters\Scripts\States\AttackState.cs" />
     <Compile Include="Assets\InputSystem_Actions.cs" />
     <Compile Include="Assets\Characters\Scripts\States\CharacterState.cs" />
+    <Compile Include="Assets\Interfaces\IState.cs" />
     <Compile Include="Assets\Battle\Scripts\FormationManager.cs" />
     <Compile Include="Assets\Characters\Scripts\States\MagicCastState.cs" />
     <Compile Include="Assets\UI\UIManager.cs" />

@@ -10,16 +10,16 @@ public class Character : MonoBehaviour
 {
     [SerializeField] private CharacterStats stats;
     public CharacterStats Stats => stats; // Make stats publicly accessible
-    
 
-    [SerializeField] public Animator characterAnimator;    
+
+    [SerializeField] public Animator characterAnimator;
     [SerializeField] private bool debugStateTransitions = false;
-    
+
     internal int _currentHealth;
     public int CurrentHealth => _currentHealth;
     public bool IsAlive => _currentHealth > 0;
     public int FormationPosition { get; set; }
-    
+
     private StateMachine<CharacterState> stateMachine;
 
     private AnimationType currentAnimationType = AnimationType.None;
@@ -39,7 +39,7 @@ public class Character : MonoBehaviour
     {
         return stateMachine?.CurrentState;
     }
-    
+
     // === SERIALIZABLE SKILL SYSTEM ===
     [System.Serializable]
     public class SkillEntry
@@ -47,7 +47,7 @@ public class Character : MonoBehaviour
         public SkillDefinitionSO skill;
         [Range(1, 5)]
         public int rank = 1;
-        
+
         public SkillEntry() { }
         public SkillEntry(SkillDefinitionSO skill, int rank)
         {
@@ -83,15 +83,23 @@ public class Character : MonoBehaviour
     private void SyncSkillsFromSerialized()
     {
         learnedSkills.Clear();
-        
+
         // Remove null/invalid entries
         serializedSkills.RemoveAll(entry => entry.skill == null);
-        
+
         // Validate and sync to dictionary
         for (int i = 0; i < serializedSkills.Count; i++)
         {
             var entry = serializedSkills[i];
-            
+            if (entry.skill == null) // Should be caught by RemoveAll, but as an extra check
+            {
+                Debug.LogWarning($"Found a null skill entry at index {i} during sync. Removing.");
+                serializedSkills.RemoveAt(i);
+                i--;
+                continue;
+            }
+
+
             // Validate rank
             int maxRank = entry.skill.ranks?.Count ?? 0;
             if (maxRank == 0)
@@ -101,20 +109,20 @@ public class Character : MonoBehaviour
                 i--; // Adjust index after removal
                 continue;
             }
-            
+
             if (entry.rank < 1 || entry.rank > maxRank)
             {
                 Debug.LogWarning($"Invalid rank {entry.rank} for skill {entry.skill.skillNameKey}. Clamping to valid range [1-{maxRank}].");
                 entry.rank = Mathf.Clamp(entry.rank, 1, maxRank);
             }
-            
+
             // Add to dictionary (handle duplicates by keeping highest rank)
             if (learnedSkills.ContainsKey(entry.skill))
             {
                 if (entry.rank > learnedSkills[entry.skill])
                 {
                     learnedSkills[entry.skill] = entry.rank;
-                    Debug.Log($"Updated {entry.skill.skillNameKey} to rank {entry.rank}");
+                    // Debug.Log($"Updated {entry.skill.skillNameKey} to rank {entry.rank}");
                 }
             }
             else
@@ -122,11 +130,13 @@ public class Character : MonoBehaviour
                 learnedSkills[entry.skill] = entry.rank;
             }
         }
-        
-        // Remove duplicates from serialized list
+
+        // Remove duplicates from serialized list, keeping the one with the highest rank (which should match the dictionary)
         var uniqueSkills = new Dictionary<SkillDefinitionSO, SkillEntry>();
         foreach (var entry in serializedSkills)
         {
+            if (entry.skill == null) continue; // Skip null skills
+
             if (uniqueSkills.ContainsKey(entry.skill))
             {
                 // Keep the higher rank entry
@@ -140,9 +150,17 @@ public class Character : MonoBehaviour
                 uniqueSkills[entry.skill] = entry;
             }
         }
-        
+        // Ensure serialized list matches the dictionary's ranks
         serializedSkills = uniqueSkills.Values.ToList();
-        
+        foreach(var s_entry in serializedSkills)
+        {
+            if(learnedSkills.TryGetValue(s_entry.skill, out int dictRank))
+            {
+                s_entry.rank = dictRank;
+            }
+        }
+
+
         Debug.Log($"Synced {learnedSkills.Count} skills to dictionary for {GetName()}");
     }
 
@@ -156,7 +174,7 @@ public class Character : MonoBehaviour
             Debug.Log($"{GetName()} has no skills to clear.");
             return;
         }
-        
+
         int skillCount = serializedSkills.Count;
         serializedSkills.Clear();
         learnedSkills.Clear();
@@ -187,9 +205,9 @@ public class Character : MonoBehaviour
             Debug.LogWarning("No skill selected to add.");
             return;
         }
-        
+
         LearnSkill(skillToAdd, rankToAdd);
-        
+
         // Clear the selection after adding
         skillToAdd = null;
         rankToAdd = 1;
@@ -198,7 +216,7 @@ public class Character : MonoBehaviour
     [BoxGroup("Learned Skills")]
     [PropertyOrder(106)]
     [Title("Remove Skill", titleAlignment: TitleAlignments.Centered)]
-    [ValueDropdown("GetLearnedSkillsList")]
+    [ValueDropdown("GetLearnedSkillsListForEditor")] // Renamed for clarity
     [SerializeField, HideLabel]
     [InfoBox("Select a skill to remove from this character.", InfoMessageType.None)]
     private SkillDefinitionSO skillToRemove;
@@ -214,7 +232,7 @@ public class Character : MonoBehaviour
             Debug.LogWarning("No skill selected to remove.");
             return;
         }
-        
+
         ForgetSkill(skillToRemove);
         skillToRemove = null;
     }
@@ -226,19 +244,7 @@ public class Character : MonoBehaviour
     [Button("Load Default Skills"), GUIColor(0.8f, 0.8f, 1f)]
     private void LoadDefaultSkills()
     {
-        // This method can be customized per character type or use a ScriptableObject reference
-        // For now, it's a placeholder that you can customize
         Debug.Log($"LoadDefaultSkills called for {GetName()}. Implement character-specific default skills here.");
-        
-        // Example implementation:
-        // if (characterClass == CharacterClass.Warrior)
-        // {
-        //     LoadWarriorDefaultSkills();
-        // }
-        // else if (characterClass == CharacterClass.Mage)
-        // {
-        //     LoadMageDefaultSkills();
-        // }
     }
 
     [BoxGroup("Learned Skills")]
@@ -246,13 +252,12 @@ public class Character : MonoBehaviour
     [Button("Export Skills"), GUIColor(0.8f, 1f, 0.8f)]
     private void ExportSkills()
     {
-        // Export current skills to console/log for easy copying
         if (learnedSkills.Count == 0)
         {
             Debug.Log($"{GetName()} has no skills to export.");
             return;
         }
-        
+
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
         sb.AppendLine($"=== Skills for {GetName()} ===");
         foreach (var kvp in learnedSkills)
@@ -264,9 +269,9 @@ public class Character : MonoBehaviour
     }
 
     // Helper method for ValueDropdown
-    private IEnumerable<SkillDefinitionSO> GetLearnedSkillsList()
+    private IEnumerable<SkillDefinitionSO> GetLearnedSkillsListForEditor() // Renamed
     {
-        return learnedSkills.Keys;
+        return learnedSkills.Keys.ToList(); // Ensure it's a list for Odin
     }
 
     public IReadOnlyDictionary<SkillDefinitionSO, int> LearnedSkills => learnedSkills;
@@ -278,22 +283,22 @@ public class Character : MonoBehaviour
             Debug.LogError($"Attempted to learn a null skill on {GetName()}");
             return;
         }
-        
+
         int maxRank = skill.ranks?.Count ?? 0;
         if (maxRank == 0)
         {
             Debug.LogError($"Skill {skill.skillNameKey} has no ranks defined. Cannot add.");
             return;
         }
-        
+
         if (rank < 1 || rank > maxRank)
         {
             Debug.LogWarning($"Attempted to learn skill {skill.skillNameKey} at invalid rank {rank}. Max ranks: {maxRank}. Clamping to valid range.");
             rank = Mathf.Clamp(rank, 1, maxRank);
         }
 
-        bool wasUpgrade = false;
-        
+        bool wasUpgrade = false; // Used for logging
+
         // Update runtime dictionary
         if (learnedSkills.ContainsKey(skill))
         {
@@ -314,7 +319,7 @@ public class Character : MonoBehaviour
             learnedSkills.Add(skill, rank);
             Debug.Log($"{GetName()} learned new skill {skill.skillNameKey} at rank {rank}");
         }
-        
+
         // Update serialized list
         var existingEntry = serializedSkills.FirstOrDefault(e => e.skill == skill);
         if (existingEntry != null)
@@ -330,12 +335,10 @@ public class Character : MonoBehaviour
     public void ForgetSkill(SkillDefinitionSO skill)
     {
         if (skill == null) return;
-        
+
         if (learnedSkills.Remove(skill))
         {
             Debug.Log($"{GetName()} forgot skill {skill.skillNameKey}");
-            
-            // Remove from serialized list
             serializedSkills.RemoveAll(entry => entry.skill == skill);
         }
     }
@@ -359,84 +362,89 @@ public class Character : MonoBehaviour
         if (KnowsSkill(skill))
         {
             int currentRank = learnedSkills[skill];
-            // SkillDefinitionSO.ranks is 0-indexed list, but ranks are 1-indexed
-            if (currentRank > 0 && currentRank <= skill.ranks.Count)
+            if (currentRank > 0 && skill.ranks != null && currentRank <= skill.ranks.Count)
             {
                 return skill.ranks[currentRank - 1];
             }
             else
             {
-                Debug.LogError($"Skill {skill.skillNameKey} for character {GetName()} has current rank {currentRank}, but rank data is out of bounds (max ranks: {skill.ranks.Count}). Returning null.");
+                Debug.LogError($"Skill {skill.skillNameKey} for character {GetName()} has current rank {currentRank}, but rank data is out of bounds (max ranks: {skill.ranks?.Count ?? 0}). Returning null.");
             }
         }
-        Debug.LogWarning($"Character {GetName()} does not know skill {skill?.skillNameKey} or skill is null. Cannot get rank data.");
+        // Debug.LogWarning($"Character {GetName()} does not know skill {skill?.skillNameKey} or skill is null. Cannot get rank data.");
         return null;
     }
 
-    // Example of how you might get a list of usable skills
     public List<SkillDefinitionSO> GetAvailableSkills()
     {
         return learnedSkills.Keys.ToList();
     }
 
-    // Add this to the top of your Character class with other fields
     [System.Serializable]
     public class TemporaryModifier
     {
         public StatType statType;
-        public float value;
+        public float value; // Can be flat or percentage based on how you use it
         public int duration; // Number of turns remaining
-        public bool isBuff;
+        public bool isBuff; // True for buff, false for debuff
         public string sourceName; // What skill/effect applied this modifier
-    }
 
-    // Add this field to store active modifiers
+        // Optional: Add a field for how the value is applied (e.g., flat, percent_add, percent_mult)
+        // public ModifierApplicationType applicationType;
+    }
+    // public enum ModifierApplicationType { Flat, PercentAdd, PercentMult }
+
+
     private List<TemporaryModifier> activeTemporaryModifiers = new List<TemporaryModifier>();
 
     protected virtual void Awake()
     {
-        // Initialize animator if not set
         if (characterAnimator == null)
         {
             characterAnimator = GetComponent<Animator>();
         }
-        
-        // Initialize state machine
         stateMachine = new StateMachine<CharacterState>();
-        
         if (debugStateTransitions)
         {
             stateMachine.OnStateChanged += (oldState, newState) =>
                 Debug.Log($"{GetName()}: {oldState?.GetType().Name} -> {newState?.GetType().Name}");
         }
-        
-        // Initialize character stats
-        _currentHealth = stats.maxHealth;
-        
-        // IMPORTANT: Sync skills from serialized data to runtime dictionary
+        if (stats == null)
+        {
+            Debug.LogError($"CharacterStats not assigned for {GetName()}!");
+            // Optionally assign a default or disable the character
+        }
+        else
+        {
+            _currentHealth = stats.maxHealth;
+        }
         SyncSkillsFromSerialized();
     }
-    
+
     protected virtual void Start()
     {
-        // Start in idle state
         stateMachine.Initialize(new IdleState(this));
     }
-    
+
     protected virtual void Update()
     {
-        stateMachine.Update(); // Update the current state
+        stateMachine.Update(); // Calls CurrentState.UpdateLogic()
 
-        // Check if the current state has completed and produced an event
+        // The 'result' from CheckStateCompletion is already an object.
+        // We cast it to CharacterEvent if we are sure that's what Character states will produce.
         if (stateMachine.CheckStateCompletion(out object result) && result is CharacterEvent characterEvent)
         {
             HandleStateEvent(characterEvent);
+
+            // After handling the event, reset the completion status of the current state.
+            // CurrentState is guaranteed to be IState, which now has ResetCompletionStatus.
+            stateMachine.CurrentState?.ResetCompletionStatus();
         }
     }
 
     private void HandleStateEvent(CharacterEvent characterEvent)
     {
-        Debug.Log($"<color=lightblue>[CHARACTER] {GetName()} handling CharacterEvent: {characterEvent}</color>");
+        Debug.Log($"<color=lightblue>[CHARACTER] {GetName()} handling CharacterEvent: {characterEvent}. IsAlive: {IsAlive}</color>");
         switch (characterEvent)
         {
             case CharacterEvent.AttackComplete:
@@ -444,53 +452,42 @@ public class Character : MonoBehaviour
             case CharacterEvent.DefendComplete:
             case CharacterEvent.MagicComplete:
             case CharacterEvent.ItemComplete:
-                // For most action completions, if the character is alive, transition to Idle.
                 if (IsAlive)
                 {
-                    stateMachine.ChangeState(new IdleState(this));
+                    if (!(stateMachine.CurrentState is DeathState)) 
+                    {
+                        stateMachine.ChangeState(new IdleState(this));
+                    }
                 }
-                // If not alive, the DeathState should have taken over or will soon.
-                // No explicit transition here if already dead.
                 break;
             case CharacterEvent.HitKilled:
-                // This event implies the character died as a result of a hit.
-                // The Die() method should have already been called, leading to DeathState.
-                // No explicit transition here, but good for logging or other systems.
-                Debug.Log($"[CHARACTER] {GetName()} was killed by a hit. DeathState should be active.");
+                Debug.Log($"[CHARACTER] {GetName()} was killed by a hit. DeathState should be active or imminently active.");
                 break;
             case CharacterEvent.DeathComplete:
-                // The death animation/sequence has finished.
-                // The character remains in a "dead" state conceptually.
-                // No state change here, but other systems might react (e.g., BattleManager checking for team wipe).
-                Debug.Log($"[CHARACTER] {GetName()} death sequence fully complete.");
+                Debug.Log($"[CHARACTER] {GetName()} death sequence fully complete. Remains in DeathState.");
                 break;
             case CharacterEvent.None:
-                // No specific action, or an event that doesn't require a state change here.
                 break;
             default:
                 Debug.LogWarning($"[CHARACTER] Unhandled CharacterEvent: {characterEvent} for {GetName()}");
-                // Fallback to Idle if alive and in an unexpected situation.
-                if (IsAlive && !(GetCurrentState() is IdleState))
+                if (IsAlive && !(stateMachine.CurrentState is IdleState) && !(stateMachine.CurrentState is DeathState))
                 {
                     stateMachine.ChangeState(new IdleState(this));
                 }
                 break;
         }
     }
-    
-    // Public methods to change states
+
     // --- State Machine and Animation Control ---
     public void PlayAnimation(AnimationType type, Character targetForState = null)
     {
-        if (characterAnimator == null)
+        if (characterAnimator == null && type != AnimationType.None && type != AnimationType.Idle) // Allow None/Idle without animator
         {
             Debug.LogWarning($"{GetName()} has no Animator component. Cannot play animation {type}.");
-            // If an action relies on animation completion, we might need to immediately complete or skip.
-            // For now, we assume the state change will handle logic if animation is absent.
         }
 
-        currentAnimationType = type; // Track the intended animation
-        Debug.Log($"[CHARACTER] {GetName()} attempting to play animation: {type} and transition state.");
+        currentAnimationType = type;
+        // Debug.Log($"[CHARACTER] {GetName()} attempting to play animation: {type} and transition state.");
 
         switch (type)
         {
@@ -498,57 +495,39 @@ public class Character : MonoBehaviour
                 stateMachine.ChangeState(new IdleState(this));
                 break;
             case AnimationType.Attack:
-                // AttackState needs a target. If targetForState is null, it might be an issue or a generic attack anim.
                 stateMachine.ChangeState(new AttackState(this, targetForState));
                 break;
             case AnimationType.Hit:
-                // HitState doesn't usually need a target passed to its constructor, it's about self-reaction.
                 stateMachine.ChangeState(new HitState(this));
                 break;
             case AnimationType.Defend:
                 stateMachine.ChangeState(new DefendState(this));
                 break;
             case AnimationType.Cast:
-                // MagicCastState needs a target.
                 stateMachine.ChangeState(new MagicCastState(this, targetForState));
                 break;
             case AnimationType.Item:
-                // ItemState might need a target.
                 stateMachine.ChangeState(new ItemState(this, targetForState));
                 break;
             case AnimationType.Death:
-                // DeathState is usually handled by Die() method directly.
-                // But if an animation trigger is needed:
                 stateMachine.ChangeState(new DeathState(this));
                 break;
             case AnimationType.None:
-                Debug.LogWarning($"{GetName()} was asked to play AnimationType.None. Ensuring IdleState.");
-                if (!(GetCurrentState() is IdleState) && IsAlive) // Use IsAlive property
+                // Debug.LogWarning($"{GetName()} was asked to play AnimationType.None. Ensuring IdleState if alive.");
+                if (!(GetCurrentState() is IdleState) && IsAlive)
                 {
                     stateMachine.ChangeState(new IdleState(this));
                 }
                 break;
             default:
                 Debug.LogWarning($"Unhandled AnimationType '{type}' in PlayAnimation for state transition. Character: {GetName()}");
-                if (characterAnimator != null) // Simplified animator check
+                if (characterAnimator != null)
                 {
                     string triggerName = type.ToString();
-                    // A common pattern is to have an Animator parameter with the same name as the enum value
-                    // You might need a more sophisticated mapping if names differ.
-                    try
-                    {
-                        characterAnimator.SetTrigger(triggerName);
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogWarning($"Failed to set trigger '{triggerName}' for {GetName()}: {e.Message}. Checking for generic 'Action' trigger.");
-                        // Check if a generic "Action" trigger exists if specific one is missing
-                        try { characterAnimator.SetTrigger("Action"); }
-                        catch { Debug.LogWarning($"Animator for {GetName()} does not have a state/trigger for {triggerName} or a generic 'Action' trigger."); }
-                    }
+                    try { characterAnimator.SetTrigger(triggerName); }
+                    catch (Exception e) { Debug.LogWarning($"Failed to set trigger '{triggerName}' for {GetName()}: {e.Message}."); }
                 }
-                
-                if (IsAlive && GetCurrentState() == null) // Use IsAlive property
+                if (IsAlive && GetCurrentState() == null)
                 {
                     stateMachine.ChangeState(new IdleState(this));
                 }
@@ -561,150 +540,201 @@ public class Character : MonoBehaviour
 
     public void Attack(Character target)
     {
-        if (!IsAlive) return; // Use IsAlive property
-        Debug.Log($"<color=orange>[CHARACTER] {GetName()} initiating Attack on {target?.GetName()} via PlayAnimation.</color>");
+        if (!IsAlive) return;
+        // Debug.Log($"<color=orange>[CHARACTER] {GetName()} initiating Attack on {target?.GetName()} via PlayAnimation.</color>");
         PlayAnimation(AnimationType.Attack, target);
     }
 
     public void TakeHit()
     {
-        if (!IsAlive) return; // Use IsAlive property
-        Debug.Log($"<color=red>[CHARACTER] {GetName()} initiating TakeHit via PlayAnimation.</color>");
+        if (!IsAlive) return;
+        // Debug.Log($"<color=red>[CHARACTER] {GetName()} initiating TakeHit via PlayAnimation.</color>");
         PlayAnimation(AnimationType.Hit);
     }
 
     public void Defend()
     {
-        if (!IsAlive) return; // Use IsAlive property
-        Debug.Log($"<color=blue>[CHARACTER] {GetName()} initiating Defend via PlayAnimation.</color>");
+        if (!IsAlive) return;
+        // Debug.Log($"<color=blue>[CHARACTER] {GetName()} initiating Defend via PlayAnimation.</color>");
         PlayAnimation(AnimationType.Defend);
     }
 
-    public void CastMagic(Character target) 
+    public void CastMagic(Character target)
     {
-        if (!IsAlive) return; // Use IsAlive property
-        Debug.Log($"<color=purple>[CHARACTER] {GetName()} initiating magic cast on {target?.GetName() ?? "self/area"} via PlayAnimation.</color>");
+        if (!IsAlive) return;
+        // Debug.Log($"<color=purple>[CHARACTER] {GetName()} initiating magic cast on {target?.GetName() ?? "self/area"} via PlayAnimation.</color>");
         PlayAnimation(AnimationType.Cast, target);
     }
 
-    public void UseItem(Character target) 
+    public void UseItem(Character target)
     {
-        if (!IsAlive) return; // Use IsAlive property
-        Debug.Log($"<color=green>[CHARACTER] {GetName()} initiating item use on {target?.GetName() ?? "self/area"} via PlayAnimation.</color>");
+        if (!IsAlive) return;
+        // Debug.Log($"<color=green>[CHARACTER] {GetName()} initiating item use on {target?.GetName() ?? "self/area"} via PlayAnimation.</color>");
         PlayAnimation(AnimationType.Item, target);
     }
 
-    public virtual void Die() // Changed to virtual
+    // --- Animation Callback System ---
+    public void RegisterAnimationCallback(Action callback)
     {
-        if (!IsAlive) return; // Use IsAlive property. Check before setting health to 0.
-                              // This ensures Die() logic runs only once.
-        
-        _currentHealth = 0; // This will make IsAlive return false
-        Debug.Log($"<color=black>[CHARACTER] {GetName()} has died. Changing to DeathState.</color>");
-        
-        stateMachine.ChangeState(new DeathState(this));
-        
-        // OnCharacterDied?.Invoke(this); // Event for other systems
+        _onAnimationCompleteCallback = callback;
+        // Debug.Log($"<color=cyan>[CHARACTER] {GetName()} registered an animation complete callback. Current state: {stateMachine?.CurrentState?.GetType().Name}</color>");
     }
 
-    // Renamed from ReceiveDamage to TakeDamage for consistency
+    public void ClearAnimationCallback()
+    {
+        _onAnimationCompleteCallback = null;
+        // Debug.Log($"<color=cyan>[CHARACTER] {GetName()} cleared animation complete callback.</color>");
+    }
+
+    // Called by CharacterVisuals (or an animation event directly on this GameObject)
+    public void OnAnimationComplete()
+    {
+        // Debug.Log($"<color=cyan>[CHARACTER] {GetName()} received OnAnimationComplete signal.</color>");
+        Action callback = _onAnimationCompleteCallback;
+        _onAnimationCompleteCallback = null; // Clear immediately to prevent re-triggering if called multiple times rapidly
+        
+        if (callback != null)
+        {
+            // Debug.Log($"<color=cyan>[CHARACTER] {GetName()} invoking registered animation complete callback.</color>");
+            callback.Invoke();
+        }
+        else
+        {
+            // Debug.Log($"<color=grey>[CHARACTER] {GetName()} OnAnimationComplete called, but no callback was registered or it was already cleared.</color>");
+        }
+    }
+
+    // --- Stat Getters (incorporating temporary modifiers) ---
+    private float GetModifiedStat(StatType type, float baseValue)
+    {
+        float modifiedValue = baseValue;
+        // Add flat modifiers
+        modifiedValue += activeTemporaryModifiers.Where(m => m.statType == type /* && m.applicationType == ModifierApplicationType.Flat */).Sum(m => m.value);
+        
+        // Apply percentage modifiers (example for additive percentage)
+        // float percentBonus = activeTemporaryModifiers.Where(m => m.statType == type && m.applicationType == ModifierApplicationType.PercentAdd).Sum(m => m.value);
+        // modifiedValue *= (1f + percentBonus);
+        
+        // Apply multiplicative percentage modifiers
+        // foreach(var mod in activeTemporaryModifiers.Where(m => m.statType == type && m.applicationType == ModifierApplicationType.PercentMult))
+        // {
+        //    modifiedValue *= (1f + mod.value);
+        // }
+        return modifiedValue;
+    }
+
+    public int GetAttackPower() => Mathf.RoundToInt(GetModifiedStat(StatType.AttackPower, Stats.attackPower));
+    public int GetDefense() => Mathf.RoundToInt(GetModifiedStat(StatType.Defense, Stats.defense));
+    public int GetMagicPower() => Mathf.RoundToInt(GetModifiedStat(StatType.MagicPower, Stats.magicPower));
+    public int GetMagicResistance() => Mathf.RoundToInt(GetModifiedStat(StatType.MagicResistance, Stats.magicResistance));
+    // Corrected line below:
+    public float GetCritChance() => GetModifiedStat(StatType.CritChance, Stats.criticalChance / 100f); // Assuming criticalChance is stored as a whole number percentage e.g. 5 for 5%
+    public int GetSpeed() => Mathf.RoundToInt(GetModifiedStat(StatType.Speed, Stats.speed));
+    public int GetMaxHealth() => Mathf.RoundToInt(GetModifiedStat(StatType.MaxHealth, Stats.maxHealth));
+
+
+    // --- Combat Actions ---
     public void TakeDamage(int amount)
     {
-        if (!IsAlive) return; // Use IsAlive property
+        if (!IsAlive) return;
         int oldHealth = _currentHealth;
         _currentHealth -= amount;
-        _currentHealth = Mathf.Max(0, _currentHealth);
+        _currentHealth = Mathf.Max(0, _currentHealth); // Ensure health doesn't go below 0
 
         Debug.Log($"[CHARACTER] {GetName()} received {amount} damage. Health: {oldHealth} -> {_currentHealth}");
-        // OnHealthChanged?.Invoke(_currentHealth, stats.maxHealth);
+        // OnHealthChanged?.Invoke(_currentHealth, GetMaxHealth()); // Update UI or other systems
 
         if (_currentHealth <= 0 && oldHealth > 0) 
         {
             Die();
         }
     }
-    
+
     public void HealDamage(int amount)
     {
-        if (!IsAlive) // Use IsAlive property (though healing dead might be a revive mechanic later)
+        if (!IsAlive && !(stateMachine.CurrentState is DeathState)) // Can't heal if truly gone, but can if in DeathState (for revives)
         {
-            Debug.LogWarning($"Attempted to heal {GetName()} but they are not alive.");
-            return;
+            // If you want to prevent healing while in DeathState unless it's a revive, add more checks.
+            // For now, allow healing if in DeathState, assuming it might be part of a revive.
+            // if (!(stateMachine.CurrentState is DeathState)) return;
         }
         if (amount <= 0) return;
 
         int oldHealth = _currentHealth;
         _currentHealth += amount;
-        _currentHealth = Mathf.Min(_currentHealth, stats.maxHealth); // Cap at max health
+        _currentHealth = Mathf.Min(_currentHealth, GetMaxHealth()); // Clamp to max health
 
-        Debug.Log($"[CHARACTER] {GetName()} healed {amount} damage. Health: {oldHealth} -> {_currentHealth}");
-        // OnHealthChanged?.Invoke(_currentHealth, stats.maxHealth);
-    }
+        Debug.Log($"[CHARACTER] {GetName()} healed {amount}. Health: {oldHealth} -> {_currentHealth}");
+        // OnHealthChanged?.Invoke(_currentHealth, GetMaxHealth());
 
-    public void ApplyDefenseStance()
-    {
-        if (!IsAlive) return; // Use IsAlive property
-        // Logic to apply defense buff/status
-        Debug.Log($"[CHARACTER] {GetName()} is now defending.");
-        // Example: AddTemporaryModifier(StatType.Defense, Stats.defense * 0.5f, 1, true, "Defend Action");
+        // If character was dead and is now healed above 0, transition out of DeathState
+        if (oldHealth <= 0 && _currentHealth > 0 && stateMachine.CurrentState is DeathState)
+        {
+            Debug.Log($"[CHARACTER] {GetName()} revived! Transitioning from DeathState to IdleState.");
+            stateMachine.ChangeState(new IdleState(this)); // Or a specific "RevivedState"
+        }
     }
     
-    // Ensure stat getters are implemented
-    public float GetAttackPower() { return stats != null ? stats.attackPower : 0; /* + temp modifiers */ }
-    public float GetDefense() { return stats != null ? stats.defense : 0; /* + temp modifiers */ }
-    public float GetMagicPower() { return stats != null ? stats.magicPower : 0; /* + temp modifiers */ }
-    public float GetMagicResistance() { return stats != null ? stats.magicResistance : 0; /* + temp modifiers */ }
-    public float GetCritChance() { return stats != null ? stats.criticalChance : 0; /* + temp modifiers */ }
-    public float GetSpeed() { return stats != null ? stats.speed : 0; /* + temp modifiers */ }
-
-    public void AddTemporaryModifier(StatType statToModify, float modValue, int duration, bool isBuff, string sourceName = "Unknown")
+    public void ApplyDefenseStance()
     {
-        // Implementation for adding temporary modifiers
-        // activeTemporaryModifiers.Add(new TemporaryModifier { ... });
-        Debug.Log($"[CHARACTER] {GetName()} received stat mod: {statToModify} by {modValue} for {duration} turns. IsBuff: {isBuff}. Source: {sourceName}");
+        if (!IsAlive) return;
+        // Example: Add a temporary defense buff
+        // This is a placeholder. You'd define the buff amount/duration properly.
+        AddTemporaryModifier(new TemporaryModifier { 
+            statType = StatType.Defense, 
+            value = Stats.defense * 0.5f, // e.g., 50% defense buff
+            duration = 1, // Lasts for 1 turn (you'll need to manage turn duration)
+            isBuff = true,
+            sourceName = "Defend Action"
+        });
+        Debug.Log($"[CHARACTER] {GetName()} applied defense stance.");
+        // The DefendState itself handles animation and completion.
     }
 
-    private void UpdateTemporaryModifiers()
+    public void AddTemporaryModifier(TemporaryModifier modifier)
     {
-        // Logic to decrement duration and remove expired modifiers
-    }
-
-    // Method to be called by CharacterVisuals when an animation event fires
-    public void OnAnimationComplete()
-    {
-        Debug.Log($"<color=cyan>[CHARACTER] {GetName()} received OnAnimationComplete signal.</color>");
-        Action callback = _onAnimationCompleteCallback;
-        _onAnimationCompleteCallback = null; // Clear the callback after retrieving it to prevent multiple calls
-
-        if (callback != null)
+        if (!IsAlive && !(stateMachine.CurrentState is DeathState && modifier.statType == StatType.MaxHealth)) // Allow MaxHealth changes on dead for revive logic
         {
-            Debug.Log($"<color=cyan>[CHARACTER] {GetName()} invoking registered animation complete callback.</color>");
-            callback.Invoke();
+             // Generally, don't apply modifiers to fully dead characters unless it's part of a revive mechanic
+            if(!(stateMachine.CurrentState is DeathState && (modifier.statType == StatType.MaxHealth || modifier.statType == StatType.Health))) {
+                 Debug.LogWarning($"[CHARACTER] Attempted to add modifier '{modifier.sourceName}' to {GetName()} but character is dead and not revivable by this stat. Modifiers not applied.");
+                 return;
+            }
         }
-        else
+        activeTemporaryModifiers.Add(modifier);
+        Debug.Log($"[CHARACTER] {GetName()} received modifier: {modifier.statType} {modifier.value} for {modifier.duration} turns from {modifier.sourceName}.");
+        // Recalculate stats or notify UI if needed
+        // Example: if (modifier.statType == StatType.MaxHealth) UpdateHealthDisplay();
+    }
+
+    // Call this at the start of each character's turn, or end of round
+    public void TickTemporaryModifiers()
+    {
+        for (int i = activeTemporaryModifiers.Count - 1; i >= 0; i--)
         {
-            Debug.LogWarning($"<color=yellow>[CHARACTER] {GetName()} OnAnimationComplete called, but no callback was registered. Current state: {stateMachine?.CurrentState?.GetType().Name}</color>");
-            // If no callback, and we are in a state that should transition on animation,
-            // we might need a fallback to IdleState, but states should ideally handle their own transitions.
-            // For now, this warning is important.
+            activeTemporaryModifiers[i].duration--;
+            if (activeTemporaryModifiers[i].duration <= 0)
+            {
+                Debug.Log($"[CHARACTER] {GetName()} modifier {activeTemporaryModifiers[i].statType} from {activeTemporaryModifiers[i].sourceName} expired.");
+                activeTemporaryModifiers.RemoveAt(i);
+                // Recalculate stats or notify UI
+            }
         }
     }
 
-    // Method for states to register a callback for animation completion
-    public void RegisterAnimationCallback(Action callback)
-    {
-        // Clear any existing callback before registering a new one to avoid conflicts
-        if (_onAnimationCompleteCallback != null)
-        {
-            Debug.LogWarning($"<color=yellow>[CHARACTER] {GetName()} overwriting an existing animation complete callback. Old callback was for: (State might have changed). New callback registered.</color>");
-        }
-        _onAnimationCompleteCallback = callback;
-        Debug.Log($"<color=cyan>[CHARACTER] {GetName()} registered an animation complete callback. Current state: {stateMachine?.CurrentState?.GetType().Name}</color>");
-    }
 
-    // Optional: Method for states to clear their callback if they exit prematurely
-    public void ClearAnimationCallback()
+    public virtual void Die()
     {
-        _onAnimationCompleteCallback = null;
+        bool wasAlreadyDeadOrDying = _currentHealth <= 0 || stateMachine.CurrentState is DeathState;
+        _currentHealth = 0; 
+
+        if (wasAlreadyDeadOrDying && stateMachine.CurrentState is DeathState)
+        {
+            // Debug.Log($"<color=grey>[CHARACTER] {GetName()} Die() called, but already dead/dying or in DeathState. Current Health: {_currentHealth}</color>");
+            return;
+        }
+        
+        Debug.Log($"<color=black>[CHARACTER] {GetName()} has died. Changing to DeathState. Current Health: {_currentHealth}</color>");
+        stateMachine.ChangeState(new DeathState(this)); 
     }
 }

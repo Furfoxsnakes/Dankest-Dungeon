@@ -68,32 +68,35 @@ public enum SkillTargetType
     RandomAlly
 }
 
-public enum SkillEffectType 
-{ 
-    Damage, 
-    Heal, 
-    BuffStat, 
+public enum SkillEffectType
+{
+    Damage,
+    Heal,
+    BuffStat,
     DebuffStat,
-    ApplyStatusEffect, 
+    ApplyStatusEffect,
     ClearStatusEffect,
-    MoveTarget, // For push/pull mechanics
+    MoveTarget,
+    Revive // For push/pull mechanics
     // Add more as needed
 }
 
-public enum StatType // Example stats, expand as needed
+public enum StatType
 {
-    None, // For effects that don't target a specific stat (e.g. ApplyStatusEffect)
-    MaxHealth,
-    CurrentHealth, // Usually for direct healing/damage, not buffs
+    None,
+    Health,
+    Mana,
+    Stamina,
     AttackPower,
     Defense,
+    MagicPower,
+    MagicResistance,
     Speed,
+    CritChance,
+    MaxHealth,
     Accuracy,
     Dodge,
-    CritChance,
-    MagicPower,
-    MagicResistance
-    // Add more RPG stats
+    // ... other stat types
 }
 public enum RowCategory
 {
