@@ -55,6 +55,7 @@
     <Compile Include="Assets\Enums\Enums.cs" />
     <Compile Include="Assets\Characters\Scripts\Character.cs" />
     <Compile Include="Assets\Characters\Scripts\States\AttackState.cs" />
+    <Compile Include="Assets\Skills\Scripts\SkillEntry.cs" />
     <Compile Include="Assets\InputSystem_Actions.cs" />
     <Compile Include="Assets\Characters\Scripts\States\CharacterState.cs" />
     <Compile Include="Assets\Interfaces\IState.cs" />
@@ -73,6 +74,7 @@
     <Compile Include="Assets\Characters\Scripts\States\HitState.cs" />
     <Compile Include="Assets\Battle\Scripts\States\EnemyTurnState.cs" />
     <Compile Include="Assets\Settings\Scenes\NewSceneTemplatePipeline.cs" />
+    <Compile Include="Assets\Characters\Scripts\CharacterBuffs.cs" />
     <Compile Include="Assets\Skills\Scripts\SkillEffectResults.cs" />
     <Compile Include="Assets\Characters\CharacterVisuals.cs" />
     <Compile Include="Assets\Characters\Scripts\States\IdleState.cs" />
@@ -86,6 +88,7 @@
     <Compile Include="Assets\UI\InventoryUI.cs" />
     <Compile Include="Assets\Scripts\Core\GameManager.cs" />
     <Compile Include="Assets\PlayerControls.cs" />
+    <Compile Include="Assets\Characters\Scripts\CharacterSkills.cs" />
     <Compile Include="Assets\Scripts\Core\SaveSystem.cs" />
     <Compile Include="Assets\Characters\Scripts\Stats.cs" />
     <Compile Include="Assets\Skills\Scripts\SkillRankData.cs" />

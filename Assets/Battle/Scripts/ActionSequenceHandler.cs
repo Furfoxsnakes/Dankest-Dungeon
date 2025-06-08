@@ -362,7 +362,7 @@ public class ActionSequenceHandler : MonoBehaviour
 					// Assuming CalculateValueWithScaling is correctly in SkillEffectProcessor
 					float modifierActualValue = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
 
-					Character.TemporaryModifier newModifier = new Character.TemporaryModifier
+					TemporaryModifier newModifier = new TemporaryModifier
 					{
 						statType = effectData.statToModify,
 						value = modifierActualValue, // Use the calculated value
