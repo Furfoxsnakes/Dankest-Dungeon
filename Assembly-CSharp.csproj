@@ -81,6 +81,7 @@
     <Compile Include="Assets\Characters\Enemies\AI\AIController.cs" />
     <Compile Include="Assets\Scripts\Core\StateMachine.cs" />
     <Compile Include="Assets\Skills\Scripts\SkillDefinitionSO.cs" />
+    <Compile Include="Assets\Battle\Scripts\TargettingSystem.cs" />
     <Compile Include="Assets\Battle\Scripts\StatusEffects.cs" />
     <Compile Include="Assets\UI\InventoryUI.cs" />
     <Compile Include="Assets\Scripts\Core\GameManager.cs" />
@@ -95,6 +96,7 @@
     <Compile Include="Assets\Characters\Enemies\AI\AggressiveAI.cs" />
     <Compile Include="Assets\Battle\Scripts\States\ActionExecutionState.cs" />
     <Compile Include="Assets\Characters\Scripts\States\DeathState.cs" />
+    <Compile Include="Assets\Battle\Scripts\ActionSequenceHandler.cs" />
     <Compile Include="Assets\Characters\Enemies\Enemy.cs" />
     <Compile Include="Assets\Battle\Scripts\States\StartState.cs" />
     <Compile Include="Assets\Characters\Player\Hero.cs" />
