@@ -970,6 +970,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillProcessor: {fileID: 1193273365}
   actionSequenceHandler: {fileID: 1193273364}
+  battleUI: {fileID: 1851572543}
 --- !u!114 &1193273364
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1235,6 +1236,7 @@ MonoBehaviour:
   battleUICanvas: {fileID: 1929871508}
   actionButtonsPanel: {fileID: 1665758305}
   partyInfoPanel: {fileID: 0}
+  NormalHitDamageNumberPrefab: {fileID: 5614432264834671827, guid: 206a80fc26304be4fb8e68dce30a2f07, type: 3}
   actionButtonPrefab: {fileID: 7535604232355376184, guid: ba439e00e4a6e6042b55b4aa338e8269, type: 3}
   actionButtonsContainer: {fileID: 1665758306}
 --- !u!1 &1895267367

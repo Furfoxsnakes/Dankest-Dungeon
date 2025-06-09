@@ -7,20 +7,43 @@ using Random = UnityEngine.Random;
 
 public class CombatSystem : MonoBehaviour
 {
+    [Header("Component References")]
     [SerializeField] private SkillEffectProcessor skillProcessor;
-    [SerializeField] private ActionSequenceHandler actionSequenceHandler; // New
-    [SerializeField] private TargetingSystem targetingSystem; // New
-    
-    private List<Character> playerCharacters;
-    private List<Character> enemyCharacters;
-    
+    [SerializeField] private ActionSequenceHandler actionSequenceHandler;
+    [SerializeField] private TargetingSystem targetingSystem;
+    [SerializeField] private BattleUI battleUI; // Assign in Inspector
+
     private List<Character> _playerTeamCharacters;
     private List<Character> _enemyTeamCharacters;
 
     private void Awake()
     {
-        if (skillProcessor == null)
+        if (battleUI == null)
+        {
+            Debug.LogError("[CombatSystem] BattleUI is not assigned in the Inspector!");
+            // Optionally, try to find it as a fallback, but Inspector assignment is preferred
+            // battleUI = FindFirstObjectByType<BattleUI>();
+        }
+
+        if (skillProcessor == null) // Ensure skillProcessor is assigned or found
             skillProcessor = GetComponent<SkillEffectProcessor>() ?? gameObject.AddComponent<SkillEffectProcessor>();
+        
+        // Initialize SkillEffectProcessor with BattleUI
+        if (skillProcessor != null)
+        {
+            if (battleUI != null)
+            {
+                skillProcessor.Initialize(battleUI);
+            }
+            else
+            {
+                Debug.LogError("[CombatSystem] Cannot initialize SkillEffectProcessor because BattleUI is missing.");
+            }
+        }
+        else
+        {
+            Debug.LogError("[CombatSystem] SkillProcessor is not assigned or found.");
+        }
         
         if (targetingSystem == null)
             targetingSystem = new TargetingSystem(); // Or GetComponent if it becomes a MonoBehaviour
@@ -32,24 +55,24 @@ public class CombatSystem : MonoBehaviour
         actionSequenceHandler.Initialize(this, skillProcessor, targetingSystem);
     }
     
-    public void Initialize(List<Character> players, List<Character> enemies)
-    {
-        playerCharacters = players;
-        enemyCharacters = enemies;
-        
-        Debug.Log($"[COMBAT] Combat system initialized with {players.Count} players and {enemies.Count} enemies");
-        
-        foreach (var character in players) { ValidateCharacter(character, "Player"); }
-        foreach (var character in enemies) { ValidateCharacter(character, "Enemy"); }
-    }
-
     public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
     {
         _playerTeamCharacters = playerTeam;
         _enemyTeamCharacters = enemyTeam;
         // Pass team data to TargetingSystem
-        targetingSystem.InitializeTeams(_playerTeamCharacters, _enemyTeamCharacters);
-        // If ActionSequenceHandler needs direct team lists, pass them here too or provide getters.
+        if (targetingSystem != null)
+        {
+            targetingSystem.InitializeTeams(_playerTeamCharacters, _enemyTeamCharacters);
+        }
+        else
+        {
+            Debug.LogError("[CombatSystem] TargetingSystem is null, cannot initialize teams.");
+        }
+        
+        Debug.Log($"[COMBAT] Combat system initialized with {playerTeam.Count} players and {enemyTeam.Count} enemies");
+        
+        foreach (var character in playerTeam) { ValidateCharacter(character, "Player"); }
+        foreach (var character in enemyTeam) { ValidateCharacter(character, "Enemy"); }
     }
     
     private void ValidateCharacter(Character character, string type)
@@ -68,9 +91,6 @@ public class CombatSystem : MonoBehaviour
         Debug.Log($"[COMBAT] {type} character {character.GetName()} validated for combat");
     }
     
-    public List<Character> GetPlayerCharacters() => playerCharacters;
-    public List<Character> GetEnemyCharacters() => enemyCharacters;
-
     // Public accessors for team lists if needed by other systems or UI
     public List<Character> GetPlayerTeamCharacters() => _playerTeamCharacters;
     public List<Character> GetEnemyTeamCharacters() => _enemyTeamCharacters;
@@ -89,7 +109,5 @@ public class CombatSystem : MonoBehaviour
         }
     }
     
-    // ... All Execute...Sequence methods, ApplySkillEffectToTargetWithSequence,
-    // ... CalculateDamage, CalculateMagicDamage, and DetermineFinalTargets
-    // ... would be REMOVED from this file and moved to their respective new classes.
+    // ... (rest of the CombatSystem class)
 }

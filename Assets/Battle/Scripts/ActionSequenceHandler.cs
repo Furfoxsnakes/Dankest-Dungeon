@@ -283,125 +283,115 @@ public class ActionSequenceHandler : MonoBehaviour
 
 	// Renamed and refactored from ApplySkillEffectToTarget
 	private IEnumerator ApplySkillEffectToTargetWithSequence(Character actor, Character targetCharacter, SkillEffectData effectData, SkillRankData skillRankData, SkillDefinitionSO skill)
-	{
-		if (targetCharacter == null)
-		{
-			Debug.LogError($"[COMBAT] Target character is null for effect {effectData.effectType} from skill {skill.skillNameKey}.");
-			yield break;
-		}
-		if (effectData == null)
-		{
-			Debug.LogError($"[COMBAT] SkillEffectData is null for skill {skill.skillNameKey}.");
-			yield break;
-		}
+    {
+        if (targetCharacter == null)
+        {
+            Debug.LogError($"[COMBAT] Target character is null for effect {effectData.effectType} from skill {skill.skillNameKey}.");
+            yield break;
+        }
+        if (effectData == null)
+        {
+            Debug.LogError($"[COMBAT] SkillEffectData is null for skill {skill.skillNameKey}.");
+            yield break;
+        }
 
-		Debug.Log($"[COMBAT] Processing effect '{effectData.effectType}' from skill '{skill.skillNameKey}' on target '{targetCharacter.GetName()}' by actor '{actor.GetName()}'");
+        Debug.Log($"[COMBAT] Processing effect '{effectData.effectType}' from skill '{skill.skillNameKey}' on target '{targetCharacter.GetName()}' by actor '{actor.GetName()}'");
 
-		// Play target's hit animation if applicable (and alive)
-		// Adjust this condition based on which effects should trigger a "hit" reaction
-		bool shouldPlayHitAnimation = effectData.effectType == SkillEffectType.Damage ||
-									  effectData.effectType == SkillEffectType.DebuffStat; // Example: Debuffs also cause a hit reaction
+        // Play target's hit animation if applicable (and alive)
+        bool shouldPlayHitAnimation = effectData.effectType == SkillEffectType.Damage ||
+                                      effectData.effectType == SkillEffectType.DebuffStat; 
 
-		if (shouldPlayHitAnimation && targetCharacter.IsAlive)
-		{
-			targetCharacter.TakeHit();
-			yield return new WaitUntil(() => !(targetCharacter.GetCurrentState() is HitState) || !targetCharacter.IsAlive);
-			Debug.Log($"[COMBAT] Target ({targetCharacter.GetName()}) completed hit animation sequence or died.");
-		}
+        if (shouldPlayHitAnimation && targetCharacter.IsAlive)
+        {
+            targetCharacter.TakeHit();
+            yield return new WaitUntil(() => !(targetCharacter.GetCurrentState() is HitState) || !targetCharacter.IsAlive);
+            Debug.Log($"[COMBAT] Target ({targetCharacter.GetName()}) completed hit animation sequence or died.");
+        }
 
-		if (!targetCharacter.IsAlive && effectData.effectType != SkillEffectType.Revive)
-		{
-			Debug.Log($"[COMBAT] Target {targetCharacter.GetName()} is dead. Skipping effect {effectData.effectType} for skill {skill.skillNameKey} (unless revive).");
-			yield break;
-		}
+        if (!targetCharacter.IsAlive && effectData.effectType != SkillEffectType.Revive)
+        {
+            Debug.Log($"[COMBAT] Target {targetCharacter.GetName()} is dead. Skipping effect {effectData.effectType} for skill {skill.skillNameKey} (unless revive).");
+            yield break;
+        }
 
-		// Initialize with a default value or new instance.
-		// The 'success' field will indicate if the calculation was valid.
-		DamageEffectResult damageEffectResult = default; // Or new DamageEffectResult();
+        switch (effectData.effectType)
+        {
+            case SkillEffectType.Damage:
+                DamageEffectResult damageResult = skillProcessor.CalculateDamageEffect(actor, targetCharacter, effectData, skillRankData);
+                if (damageResult.success)
+                {
+                    // MODIFIED: Call ApplyAndDisplayDamage from SkillEffectProcessor
+                    skillProcessor.ApplyAndDisplayDamage(targetCharacter, damageResult);
+                    Debug.Log($"[COMBAT] Damage effect processed for {targetCharacter.GetName()}. Crit: {damageResult.isCrit}, Final Damage: {damageResult.finalDamage}");
+                }
+                else
+                {
+                    Debug.Log($"[COMBAT] Damage calculation failed or was skipped for {targetCharacter.GetName()}.");
+                }
+                break;
 
-		switch (effectData.effectType)
-		{
-			case SkillEffectType.Damage:
-				// Call the CalculateDamageEffect that returns DamageEffectResult
-				damageEffectResult = skillProcessor.CalculateDamageEffect(actor, targetCharacter, effectData, skillRankData);
+            case SkillEffectType.Heal:
+                HealEffectResult healResult = skillProcessor.CalculateHealEffect(actor, targetCharacter, effectData, skillRankData);
+                if (healResult.success)
+                {
+                    // MODIFIED: Call ApplyAndDisplayHeal from SkillEffectProcessor
+                    skillProcessor.ApplyAndDisplayHeal(targetCharacter, healResult);
+                    Debug.Log($"[COMBAT] Heal effect processed for {targetCharacter.GetName()}. Crit: {healResult.isCrit}, Final Heal: {healResult.finalHeal}");
+                }
+                else
+                {
+                    Debug.Log($"[COMBAT] Heal calculation failed or was skipped for {targetCharacter.GetName()}.");
+                }
+                break;
 
-				// Check the 'success' field instead of null
-				if (damageEffectResult.success)
-				{
-					Debug.Log($"[COMBAT] Applying {damageEffectResult.finalDamage} damage to {targetCharacter.GetName()}. Crit: {damageEffectResult.isCrit}");
-					targetCharacter.TakeDamage(damageEffectResult.finalDamage);
-				}
-				else
-				{
-					Debug.Log($"[COMBAT] Damage calculation failed or was skipped for {targetCharacter.GetName()}.");
-				}
-				break;
+            case SkillEffectType.BuffStat: 
+            case SkillEffectType.DebuffStat: 
+                if (targetCharacter.IsAlive || (targetCharacter.GetCurrentState() is DeathState && effectData.statToModify == StatType.MaxHealth))
+                {
+                    // Calculate the actual modifier value, potentially including scaling
+                    // Assuming CalculateValueWithScaling is correctly in SkillEffectProcessor
+                    float modifierActualValue = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
 
-			case SkillEffectType.Heal:
-				// Calculate final heal amount, potentially using effectData.baseValue, scalingStat, etc.
-				// Assuming CalculateValueWithScaling is correctly in SkillEffectProcessor
-				// For HealEffectResult, you'd do a similar change if it's also a struct.
-				// Let's assume skillProcessor.CalculateHealEffect returns a HealEffectResult struct:
-				HealEffectResult healEffectResult = skillProcessor.CalculateHealEffect(actor, targetCharacter, effectData, skillRankData);
-				if (healEffectResult.success)
-				{
-					Debug.Log($"[COMBAT] Healing {targetCharacter.GetName()} for {healEffectResult.finalHeal}. Crit: {healEffectResult.isCrit}");
-					targetCharacter.HealDamage(healEffectResult.finalHeal);
-				}
-				else
-				{
-					Debug.Log($"[COMBAT] Heal calculation failed or was skipped for {targetCharacter.GetName()}.");
-				}
-				break;
+                    TemporaryModifier newModifier = new TemporaryModifier
+                    {
+                        statType = effectData.statToModify,
+                        value = modifierActualValue, // Use the calculated value
+                        duration = effectData.duration,
+                        isBuff = (effectData.effectType == SkillEffectType.BuffStat), // BuffStat is a buff, DebuffStat is not.
+                        sourceName = skill.skillNameKey
+                    };
+                    targetCharacter.AddTemporaryModifier(newModifier);
+                    Debug.Log($"[COMBAT] Applied modifier {newModifier.statType} from {newModifier.sourceName} to {targetCharacter.GetName()}. Value: {newModifier.value}, Duration: {newModifier.duration}, IsBuff: {newModifier.isBuff}");
+                }
+                else
+                {
+                    Debug.Log($"[COMBAT] Skipped applying stat modifier from {skill.skillNameKey} to {targetCharacter.GetName()} because target is dead and conditions not met.");
+                }
+                break;
 
-			case SkillEffectType.BuffStat: // Explicitly a buff to a stat
-			case SkillEffectType.DebuffStat: // Explicitly a debuff to a stat
-				if (targetCharacter.IsAlive || (targetCharacter.GetCurrentState() is DeathState && effectData.statToModify == StatType.MaxHealth))
-				{
-					// Calculate the actual modifier value, potentially including scaling
-					// Assuming CalculateValueWithScaling is correctly in SkillEffectProcessor
-					float modifierActualValue = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
+            // case SkillEffectType.ApplyStatusEffect:
+            //    // TODO: Implement logic to apply status effects
+            //    Debug.Log($"[COMBAT] Applying status effect (not yet implemented) from {skill.skillNameKey} to {targetCharacter.GetName()}.");
+            //    break;
 
-					TemporaryModifier newModifier = new TemporaryModifier
-					{
-						statType = effectData.statToModify,
-						value = modifierActualValue, // Use the calculated value
-						duration = effectData.duration,
-						isBuff = (effectData.effectType == SkillEffectType.BuffStat), // BuffStat is a buff, DebuffStat is not.
-						sourceName = skill.skillNameKey
-					};
-					targetCharacter.AddTemporaryModifier(newModifier);
-					Debug.Log($"[COMBAT] Applied modifier {newModifier.statType} from {newModifier.sourceName} to {targetCharacter.GetName()}. Value: {newModifier.value}, Duration: {newModifier.duration}, IsBuff: {newModifier.isBuff}");
-				}
-				else
-				{
-					Debug.Log($"[COMBAT] Skipped applying stat modifier from {skill.skillNameKey} to {targetCharacter.GetName()} because target is dead and conditions not met.");
-				}
-				break;
+            // case SkillEffectType.ClearStatusEffect:
+            //    // TODO: Implement logic to clear status effects
+            //    Debug.Log($"[COMBAT] Clearing status effect (not yet implemented) from {skill.skillNameKey} on {targetCharacter.GetName()}.");
+            //    break;
 
-			// case SkillEffectType.ApplyStatusEffect:
-			//    // TODO: Implement logic to apply status effects
-			//    Debug.Log($"[COMBAT] Applying status effect (not yet implemented) from {skill.skillNameKey} to {targetCharacter.GetName()}.");
-			//    break;
+            // case SkillEffectType.Revive:
+            //    // TODO: Implement revive logic
+            //    // float reviveHealthPercentage = effectData.baseValue; // e.g., baseValue is 0.25 for 25% health
+            //    // targetCharacter.Revive(reviveHealthPercentage);
+            //    Debug.Log($"[COMBAT] Reviving (not yet implemented) {targetCharacter.GetName()} with skill {skill.skillNameKey}.");
+            //    break;
 
-			// case SkillEffectType.ClearStatusEffect:
-			//    // TODO: Implement logic to clear status effects
-			//    Debug.Log($"[COMBAT] Clearing status effect (not yet implemented) from {skill.skillNameKey} on {targetCharacter.GetName()}.");
-			//    break;
-
-			// case SkillEffectType.Revive:
-			//    // TODO: Implement revive logic
-			//    // float reviveHealthPercentage = effectData.baseValue; // e.g., baseValue is 0.25 for 25% health
-			//    // targetCharacter.Revive(reviveHealthPercentage);
-			//    Debug.Log($"[COMBAT] Reviving (not yet implemented) {targetCharacter.GetName()} with skill {skill.skillNameKey}.");
-			//    break;
-
-			default:
-				Debug.LogWarning($"[COMBAT] Unhandled SkillEffectType: {effectData.effectType} for skill {skill.skillNameKey}");
-				break;
-		}
-		yield return null;
-	}
+            default:
+                Debug.LogWarning($"[COMBAT] Unhandled SkillEffectType: {effectData.effectType} for skill {skill.skillNameKey}");
+                break;
+        }
+        yield return null;
+    }
 	
 	private int CalculateDamage(Character attacker, Character target)
     {

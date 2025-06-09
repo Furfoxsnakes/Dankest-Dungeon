@@ -5,7 +5,9 @@ using UnityEngine.InputSystem;
 using GameInput; // Assuming your PlayerControls is in this namespace
 using System.Collections.Generic; // For List
 using DankestDungeon.Skills;
-using System;   // For SkillDefinitionSO
+using System;
+using DamageNumbersPro;   // For SkillDefinitionSO
+using TMPro; // If your DamageNumberGUI prefab uses TextMeshPro for display, otherwise remove
 
 
 public class BattleUI : MonoBehaviour
@@ -22,6 +24,7 @@ public class BattleUI : MonoBehaviour
     [SerializeField] private Canvas battleUICanvas;
     [SerializeField] private GameObject actionButtonsPanel; // Panel containing your action buttons
     [SerializeField] private GameObject partyInfoPanel;
+    [SerializeField] private DamageNumber NormalHitDamageNumberPrefab; // Using DamageNumberPro asset
 
     [Header("Action Buttons")]
     [SerializeField] private GameObject actionButtonPrefab; // Assign your ActionButton prefab
@@ -32,6 +35,16 @@ public class BattleUI : MonoBehaviour
     private Camera battleCamera;
 
     private List<GameObject> _instantiatedActionButtons = new List<GameObject>();
+
+    // Enum to differentiate damage/heal types for future styling
+    public enum DamageNumberType
+    {
+        NormalDamage,
+        CriticalDamage,
+        Heal,
+        StatusEffect
+        // Add more as needed
+    }
 
     void Awake()
     {
@@ -284,4 +297,55 @@ public class BattleUI : MonoBehaviour
         }
         // Note: TargetSelectionState has its own Cancel handling. This one is for the action button panel.
     }
+
+    // ---- New Method to Show Damage Numbers ----
+    public void ShowDamageNumber(Character target, int amount, DamageNumberType type = DamageNumberType.NormalDamage)
+    {
+        if (target == null)
+        {
+            Debug.LogWarning("ShowDamageNumber called with a null target.");
+            return;
+        }
+
+        if (NormalHitDamageNumberPrefab == null)
+        {
+            Debug.LogError("NormalHitDamageNumberPrefab is not assigned in BattleUI.");
+            return;
+        }
+
+        // Determine which prefab to use based on type (for future expansion)
+        var prefabToSpawn = NormalHitDamageNumberPrefab; // Default
+        // TODO: Add logic to select different prefabs or apply different settings based on 'type'
+        // e.g., if (type == DamageNumberType.CriticalDamage && CriticalHitDamageNumberPrefab != null) prefabToSpawn = CriticalHitDamageNumberPrefab;
+
+        if (prefabToSpawn != null)
+        {
+            Debug.Log($"Spawning damage number for target {target.GetName()} with amount {amount} and type {type}.");
+            // DamageNumbersPro typically requires you to call Spawn on the prefab instance.
+            // The Spawn method usually takes a position and the number.
+            // Adjust the spawn position if needed (e.g., above the target's head)
+            Vector3 spawnPosition = target.transform.position + new Vector3(0, 0.1f, 0); // Example offset
+
+            // Spawn the damage number using DamageNumbersPro's API
+            // The exact method might vary based on DamageNumbersPro version,
+            // but it's commonly prefab.Spawn(position, number) or similar.
+            var spawnedNumber = prefabToSpawn.Spawn(spawnPosition, amount);
+
+            // You can further customize the spawnedNumber instance here if needed,
+            // for example, setting color based on 'type' if the prefab supports it directly
+            // or if you have a script on the prefab to handle this.
+            // e.g., if (type == DamageNumberType.Heal) spawnedNumber.SetColor(Color.green);
+            // This depends heavily on how your DamageNumberGUI prefab and DamageNumbersPro are set up.
+
+            if (spawnedNumber == null)
+            {
+                Debug.LogError($"Failed to spawn damage number for target {target.GetName()} with amount {amount}. Check DamageNumbersPro setup.");
+            }
+        }
+        else
+        {
+            Debug.LogError($"Prefab for DamageNumberType '{type}' is not available.");
+        }
+    }
+    // ---- End New Method ----
 }

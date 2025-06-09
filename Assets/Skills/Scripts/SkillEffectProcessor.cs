@@ -1,11 +1,31 @@
 using UnityEngine;
 using DankestDungeon.Skills; // Assuming StatType and other enums are here
+// It's good practice to include using directives for types used in public method signatures
+// if they are in different namespaces, though BattleUI might be in the global namespace or a common one.
+// using YourNamespace.UI; // If BattleUI is in a specific namespace
 
 public class SkillEffectProcessor : MonoBehaviour
 {
     [Header("Global Settings")]
-    [SerializeField] private float baseCritMultiplier = 1.5f; // Make sure this is used by your CalculateDamageValue
-    [SerializeField] private int minimumDamage = 1; // Make sure this is used
+    [SerializeField] private float baseCritMultiplier = 1.5f;
+    [SerializeField] private int minimumDamage = 1;
+
+    private BattleUI battleUI; // Add this field to store the reference
+
+    // ---- Add this Initialize method ----
+    public void Initialize(BattleUI ui)
+    {
+        this.battleUI = ui;
+        if (this.battleUI == null)
+        {
+            Debug.LogError("[SkillEffectProcessor] Initialization with a null BattleUI reference!");
+        }
+        else
+        {
+            Debug.Log("[SkillEffectProcessor] Initialized successfully with BattleUI.");
+        }
+    }
+    // ---- End of new method ----
 
     // This is your existing method that returns DamageEffectResult - KEEP THIS
     public DamageEffectResult CalculateDamageEffect(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData)
@@ -63,7 +83,6 @@ public class SkillEffectProcessor : MonoBehaviour
         };
     }
     
-    // Ensure this method is present and correct
     public float CalculateValueWithScaling(Character caster, float baseValue, StatType scalingStat, float scalingMultiplier)
     {
         float finalValue = baseValue;
@@ -75,7 +94,6 @@ public class SkillEffectProcessor : MonoBehaviour
         return finalValue;
     }
 
-    // Your internal calculation helpers:
     private float CalculateDamageValue(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData, out bool isCrit)
     {
         float totalDamage = CalculateValueWithScaling(caster, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
@@ -143,6 +161,53 @@ public class SkillEffectProcessor : MonoBehaviour
             default:
                 Debug.LogWarning($"Stat type {statType} not implemented in GetCharacterStatValue");
                 return 0f;
+        }
+    }
+
+    // ---- Add the ApplyAndDisplayDamage and ApplyAndDisplayHeal methods if they are not already present ----
+    // These methods were suggested previously and are needed to actually show the damage numbers.
+
+    public void ApplyAndDisplayDamage(Character target, DamageEffectResult damageResult)
+    {
+        if (target == null || !damageResult.success)
+        {
+            Debug.LogWarning($"[SkillEffectProcessor] ApplyAndDisplayDamage: Invalid target or damage result not successful for {target?.GetName()}.");
+            return;
+        }
+
+        target.TakeDamage(damageResult.finalDamage); 
+
+        if (battleUI != null)
+        {
+            BattleUI.DamageNumberType type = damageResult.isCrit ? BattleUI.DamageNumberType.CriticalDamage : BattleUI.DamageNumberType.NormalDamage;
+            battleUI.ShowDamageNumber(target, damageResult.finalDamage, type);
+        }
+        else
+        {
+            Debug.LogError("[SkillEffectProcessor] BattleUI reference is null. Cannot display damage number.");
+        }
+    }
+
+    public void ApplyAndDisplayHeal(Character target, HealEffectResult healResult)
+    {
+        if (target == null || !healResult.success)
+        {
+            Debug.LogWarning($"[SkillEffectProcessor] ApplyAndDisplayHeal: Invalid target or heal result not successful for {target?.GetName()}.");
+            return;
+        }
+
+        target.HealDamage(healResult.finalHeal);
+
+        if (battleUI != null)
+        {
+            BattleUI.DamageNumberType type = BattleUI.DamageNumberType.Heal;
+            // If you add a specific CriticalHeal type:
+            // BattleUI.DamageNumberType type = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal;
+            battleUI.ShowDamageNumber(target, healResult.finalHeal, type);
+        }
+        else
+        {
+            Debug.LogError("[SkillEffectProcessor] BattleUI reference is null. Cannot display healing number.");
         }
     }
 }
