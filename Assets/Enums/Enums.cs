@@ -118,3 +118,16 @@ public enum AnimationType
     Victory,
     Flee,
 }
+
+public enum ElementType
+{
+    Physical, // Default or for non-elemental physical attacks
+    Fire,
+    Ice,
+    Lightning,
+    Poison,
+    Holy,
+    Shadow,
+    Healing // Can also be an element if heals have types/resistances
+    // Add more as needed
+}

@@ -20,7 +20,7 @@ public class ItemState : CharacterState
             owner.characterAnimator.SetTrigger(ITEM_ANIMATION_TRIGGER);
             Debug.Log($"[STATE] {owner.GetName()} triggered '{ITEM_ANIMATION_TRIGGER}' animation.");
 
-            owner.RegisterAnimationCallback(() => {
+            owner.RegisterInternalAnimationCallback(() => {
                 Debug.Log($"<color=green>[STATE] {owner.GetName()} ItemUse animation complete (via callback). Completing with event.</color>");
                 Complete(CharacterEvent.ItemComplete);
             });
@@ -35,7 +35,7 @@ public class ItemState : CharacterState
     public override void Exit()
     {
         base.Exit();
-        owner.ClearAnimationCallback();
+        owner.ClearInternalAnimationCallback();
         Debug.Log($"[STATE] {owner.GetName()} exiting ItemState.");
     }
 }

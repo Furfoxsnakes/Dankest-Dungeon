@@ -393,10 +393,10 @@ MonoBehaviour:
   enableLerp: 1
   lerpSettings:
     speed: 5
-    minX: -0.4
-    maxX: 0.4
-    minY: 0.4
-    maxY: 0.7
+    minX: 0
+    maxX: 0
+    minY: 0.5
+    maxY: 0.5
     randomFlip: 0
   enableVelocity: 0
   velocitySettings:
@@ -581,10 +581,10 @@ MonoBehaviour:
     absorberScaleFade: 15
     instantGain: 0
     bonusLifetime: 1
-  enableDestruction: 1
+  enableDestruction: 0
   destructionSettings:
     maxDistance: 2
-    spawnDelay: 0.3
+    spawnDelay: 0.2
     duration: 0.3
     scaleCurve:
       serializedVersion: 2
@@ -634,11 +634,11 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  enableCollision: 1
+  enableCollision: 0
   collisionSettings:
-    radius: 2
-    pushFactor: 0.5
-    desiredDirection: {x: 0, y: 2, z: 0}
+    radius: 0.5
+    pushFactor: 1
+    desiredDirection: {x: 0, y: 0, z: 0}
   enablePush: 0
   pushSettings:
     radius: 3

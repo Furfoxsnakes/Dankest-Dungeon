@@ -7,11 +7,14 @@ public class PlayerTurnState : BattleState
     private SkillDefinitionSO currentSelectedSkill;
     private Character activeCharacter;
     private BattleUI battleUI;
+    private SkillEffectProcessor skillEffectProcessor; // Add this
 
     public PlayerTurnState(BattleManager manager) : base(manager) 
     {
-        battleUI = manager.GetBattleUI(); // battleUI should be cached by BattleManager
+        battleUI = manager.GetBattleUI();
+        skillEffectProcessor = manager.GetSkillEffectProcessor(); // Get from BattleManager
         if (battleUI == null) Debug.LogError("BattleUI not found for PlayerTurnState via BattleManager.");
+        if (skillEffectProcessor == null) Debug.LogError("SkillEffectProcessor not found for PlayerTurnState via BattleManager.");
     }
     
     public override void Enter()
@@ -24,6 +27,25 @@ public class PlayerTurnState : BattleState
         if (activeCharacter == null || !activeCharacter.IsAlive)
         {
             Debug.LogWarning($"PlayerTurnState: Active character {activeCharacter?.GetName()} is null or not alive. Advancing turn.");
+            Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
+            return;
+        }
+
+        // Tick status effects at the start of the turn
+        if (skillEffectProcessor != null)
+        {
+            Debug.Log($"<color=yellow>[PlayerTurnState] Ticking status effects for {activeCharacter.GetName()}</color>");
+            activeCharacter.TickStatusEffects(skillEffectProcessor);
+        }
+        else
+        {
+            Debug.LogError("SkillEffectProcessor is null in PlayerTurnState. Cannot tick status effects.");
+        }
+        
+        // Check if character died from status effects
+        if (!activeCharacter.IsAlive)
+        {
+            Debug.LogWarning($"PlayerTurnState: Active character {activeCharacter.GetName()} died from status effects. Advancing turn.");
             Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
             return;
         }

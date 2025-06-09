@@ -30,9 +30,11 @@ MonoBehaviour:
     critMod: 0
     effects:
     - effectType: 0
+      elementType: 0
       baseValue: 1
-      scalingStat: 3
+      scalingStat: 4
       scalingMultiplier: 1
       duration: 1
       statToModify: 0
+      statusEffectToApply: {fileID: 0}
       chance: 1

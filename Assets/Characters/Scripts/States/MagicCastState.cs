@@ -20,7 +20,7 @@ public class MagicCastState : CharacterState
             owner.characterAnimator.SetTrigger(CAST_ANIMATION_TRIGGER); 
             Debug.Log($"[STATE] {owner.GetName()} triggered '{CAST_ANIMATION_TRIGGER}' animation.");
 
-            owner.RegisterAnimationCallback(() => {
+            owner.RegisterInternalAnimationCallback(() => {
                 Debug.Log($"<color=green>[STATE] {owner.GetName()} MagicCast animation complete (via callback). Completing with event.</color>");
                 Complete(CharacterEvent.MagicComplete);
             });
@@ -35,7 +35,7 @@ public class MagicCastState : CharacterState
     public override void Exit()
     {
         base.Exit();
-        owner.ClearAnimationCallback(); 
+        owner.ClearInternalAnimationCallback(); 
         Debug.Log($"[STATE] {owner.GetName()} exiting MagicCastState.");
     }
 }

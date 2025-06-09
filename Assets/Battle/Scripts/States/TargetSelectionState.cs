@@ -2,165 +2,168 @@ using UnityEngine;
 using DankestDungeon.Skills; // For SkillDefinitionSO and SkillTargetType
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.InputSystem;
 
 public class TargetSelectionState : BattleState
 {
-    private BattleAction actionInProgress;
-    private List<Character> potentialTargets;
-    private int currentTargetIndex = -1;
-    private BattleUI battleUI;
+    private Character _actingCharacter;
+    private SkillDefinitionSO _skillToUse; // Store the skill being targeted
+    private List<Character> _validTargets;
+    private int _currentTargetIndex = -1;
+    private BattleUI battleUI; // Declare battleUI field
 
-    public TargetSelectionState(BattleManager manager, BattleAction action) : base(manager)
+    public TargetSelectionState(BattleManager manager, Character actingCharacter, SkillDefinitionSO skill) : base(manager)
     {
-        this.actionInProgress = action;
-        this.battleUI = manager.GetBattleUI();
+        _actingCharacter = actingCharacter;
+        _skillToUse = skill;
+        this.battleUI = manager.GetBattleUI(); // Initialize battleUI from BattleManager
+
+        if (_actingCharacter == null || _skillToUse == null)
+        {
+            Debug.LogError("TargetSelectionState initialized with null actor or skill.");
+        }
+        if (this.battleUI == null)
+        {
+            Debug.LogError("TargetSelectionState could not get BattleUI from BattleManager.");
+        }
     }
 
     public override void Enter()
     {
-        Debug.Log($"<color=yellow>Target Selection: Enter. Skill: {actionInProgress.UsedSkill.skillNameKey} by {actionInProgress.Actor.GetName()}</color>");
+        Debug.Log($"<color=green>Target Selection: Enter</color> - {_actingCharacter.GetName()} using {_skillToUse.skillNameKey}");
         
-        potentialTargets = DeterminePotentialTargets();
-
-        if (potentialTargets.Count == 0)
+        TargetingSystem targetingSystem = battleManager.GetTargetingSystem();
+        if (targetingSystem != null)
         {
-            Debug.LogWarning("No valid targets found for selection. Cancelling.");
-            if (battleUI != null) battleUI.HideTargetIndicator();
-            Complete(BattleEvent.TargetSelectionCancelled, null);
+            _validTargets = targetingSystem.GetValidTargets(_actingCharacter, _skillToUse);
+        }
+        else
+        {
+            Debug.LogError("TargetingSystem is null in TargetSelectionState. Cannot get valid targets.");
+            _validTargets = new List<Character>(); // Initialize to empty list to prevent null reference later
+        }
+
+
+        if (_validTargets == null || _validTargets.Count == 0)
+        {
+            Debug.LogWarning($"No valid targets for skill {_skillToUse.skillNameKey}. Cancelling action.");
+            Complete(BattleEvent.TargetSelectionCancelled, new BattleAction(_actingCharacter, null, _skillToUse));
             return;
         }
 
-        currentTargetIndex = 0;
-        UpdateTargetIndicator();
+        _currentTargetIndex = 0;
+        UpdateTargetIndicator(); // This will now use the initialized battleUI
 
-        // Subscribe to new static input events
         InputManager.UINavigatePerformed += HandleTargetSwitchEvent;
         InputManager.UIConfirmPerformed += HandleTargetConfirmEvent;
         InputManager.UICancelPerformed += HandleCancelEvent;
-        
-        // Ensure the UI action map is active if your InputManager manages this
-        // InputManager.Instance?.EnableUIControls(); // Or a specific battle controls method
     }
 
-    private List<Character> DeterminePotentialTargets()
-    {
-        List<Character> targets = new List<Character>();
-        SkillDefinitionSO skill = actionInProgress.UsedSkill;
-        Character actor = actionInProgress.Actor;
-        FormationManager fm = battleManager.GetFormationManager();
-
-        // Check actor's launch position first
-        int actorRank = fm.GetCharacterRank(actor);
-        if (skill.launchPositions == null || !skill.launchPositions.Contains(actorRank))
-        {
-            Debug.LogWarning($"Actor {actor.GetName()} at rank {actorRank} cannot use skill {skill.skillNameKey} from this position. Valid launch positions: {(skill.launchPositions != null ? string.Join(",", skill.launchPositions) : "NOT SET")}");
-            return targets; // Empty list
-        }
-
-        List<Character> possible;
-        switch (skill.targetType)
-        {
-            case SkillTargetType.SingleEnemy:
-            case SkillTargetType.EnemyRow:
-                possible = battleManager.GetEnemyCharacters();
-                break;
-            case SkillTargetType.SingleAlly:
-            case SkillTargetType.AllyRow:
-                possible = battleManager.GetPlayerCharacters();
-                break;
-            default:
-                Debug.LogError($"TargetSelectionState entered with unhandled target type: {skill.targetType}");
-                return targets;
-        }
-
-        foreach (Character pTarget in possible)
-        {
-            if (pTarget.IsAlive)
-            {
-                int targetRank = fm.GetCharacterRank(pTarget);
-                if (skill.targetPositions != null && skill.targetPositions.Contains(targetRank))
-                {
-                    if (skill.targetType == SkillTargetType.SingleAlly && pTarget == actor)
-                    {
-                        // If SingleAlly skills should NEVER target self, this is correct.
-                        // If some CAN, you'll need a flag on the SkillDefinitionSO or SkillEffectData.
-                        continue;
-                    }
-                    targets.Add(pTarget);
-                }
-            }
-        }
-        return targets;
-    }
-
-    // Updated handler for the new static event
     private void HandleTargetSwitchEvent(Vector2 direction)
     {
-        if (potentialTargets.Count <= 1) return;
+        if (_validTargets == null || _validTargets.Count <= 1) return; // Added null check for _validTargets
 
         int change = 0;
-        // Prioritize horizontal navigation, then vertical if no horizontal input
         if (Mathf.Abs(direction.x) > 0.5f)
         {
             change = (int)Mathf.Sign(direction.x);
         }
-        else if (Mathf.Abs(direction.y) > 0.5f) // Use for up/down if your ranks are visually vertical
+        else if (Mathf.Abs(direction.y) > 0.5f)
         {
-            change = -(int)Mathf.Sign(direction.y); // Invert Y if ranks are 1 (top) to 4 (bottom)
+            change = -(int)Mathf.Sign(direction.y);
         }
-
 
         if (change != 0)
         {
-            currentTargetIndex = (currentTargetIndex + change + potentialTargets.Count) % potentialTargets.Count;
+            _currentTargetIndex = (_currentTargetIndex + change + _validTargets.Count) % _validTargets.Count;
             UpdateTargetIndicator();
         }
     }
 
-    // Updated handler for the new static event
-    private void HandleTargetConfirmEvent()
+    private void HandleTargetConfirmEvent() // This method is called by InputManager
     {
-        if (currentTargetIndex >= 0 && currentTargetIndex < potentialTargets.Count)
+        if (_validTargets == null) // Added null check
         {
-            Character confirmedTarget = potentialTargets[currentTargetIndex];
-            actionInProgress.SetTarget(confirmedTarget);
-            Debug.Log($"<color=yellow>Target Confirmed: {confirmedTarget.GetName()} for skill {actionInProgress.UsedSkill.skillNameKey}</color>");
-            if (battleUI != null) battleUI.HideTargetIndicator();
-            Complete(BattleEvent.TargetSelected, actionInProgress);
+            Debug.LogError("HandleTargetConfirmEvent: _validTargets is null!");
+            return;
+        }
+        if (_currentTargetIndex >= 0 && _currentTargetIndex < _validTargets.Count)
+        {
+            Character confirmedTarget = _validTargets[_currentTargetIndex];
+            BattleAction finalAction = new BattleAction(_actingCharacter, confirmedTarget, _skillToUse);
+            Debug.Log($"<color=yellow>Target Confirmed: {confirmedTarget.GetName()} for skill {_skillToUse.skillNameKey}</color>");
+            
+            if (battleUI != null) battleUI.HideTargetIndicator(); // battleUI is now accessible
+            Complete(BattleEvent.TargetSelected, finalAction);
+        }
+        else
+        {
+            Debug.LogWarning("TargetSelectionState: Confirm (HandleTargetConfirmEvent) pressed with no valid target selected.");
         }
     }
 
-    // Updated handler for the new static event
-    private void HandleCancelEvent()
+    private void HandleCancelEvent() // This method is called by InputManager
     {
-        Debug.Log("<color=yellow>Target Selection Cancelled by player.</color>");
-        if (battleUI != null) battleUI.HideTargetIndicator();
-        Complete(BattleEvent.TargetSelectionCancelled, null);
+        Debug.Log("<color=yellow>Target Selection Cancelled by player (HandleCancelEvent).</color>");
+        if (battleUI != null) battleUI.HideTargetIndicator(); // battleUI is now accessible
+        BattleAction cancelledAction = new BattleAction(_actingCharacter, null, _skillToUse);
+        Complete(BattleEvent.TargetSelectionCancelled, cancelledAction);
     }
 
     private void UpdateTargetIndicator()
     {
-        if (battleUI != null && currentTargetIndex >= 0 && currentTargetIndex < potentialTargets.Count)
+        if (_validTargets == null) // Added null check
         {
-            battleUI.ShowTargetIndicator(potentialTargets[currentTargetIndex]);
+            if (battleUI != null) battleUI.HideTargetIndicator();
+            return;
+        }
+        if (battleUI != null && _currentTargetIndex >= 0 && _currentTargetIndex < _validTargets.Count)
+        {
+            battleUI.ShowTargetIndicator(_validTargets[_currentTargetIndex]);
+        }
+        else if (battleUI != null) // If no valid target or index is out of bounds, hide indicator
+        {
+            battleUI.HideTargetIndicator();
         }
     }
 
     public override void Exit()
     {
         Debug.Log("<color=yellow>Target Selection: Exit</color>");
-        // Unsubscribe from static input events
         InputManager.UINavigatePerformed -= HandleTargetSwitchEvent;
         InputManager.UIConfirmPerformed -= HandleTargetConfirmEvent;
         InputManager.UICancelPerformed -= HandleCancelEvent;
 
-        if (battleUI != null)
+        if (battleUI != null) // battleUI is now accessible
         {
             battleUI.HideTargetIndicator();
-            battleUI.ShowActionButtons(false); // Hide action buttons if they were shown
         }
-
-        // Consider which control scheme should be active after exiting target selection
-        // InputManager.Instance?.EnablePlayerControls(); // Or back to a general battle state control scheme
     }
+
+    // The following OnConfirm and OnCancel methods are likely deprecated if you're using static events from InputManager.
+    // If they are still needed for some other input path, they would also need the 'using UnityEngine.InputSystem;'
+    // For now, I'm assuming HandleTargetConfirmEvent and HandleCancelEvent are the primary handlers.
+    // If these are truly unused, you can remove them.
+
+    // protected override void OnConfirm(InputAction.CallbackContext context)
+    // {
+    //     if (_currentTargetIndex >= 0 && _currentTargetIndex < _validTargets.Count)
+    //     {
+    //         Character selectedTarget = _validTargets[_currentTargetIndex];
+    //         Debug.Log($"Target selected: {selectedTarget.GetName()} for skill {_skillToUse.skillNameKey}");
+    //         BattleAction finalAction = new BattleAction(_actingCharacter, selectedTarget, _skillToUse);
+    //         Complete(BattleEvent.TargetSelected, finalAction);
+    //     }
+    //     else
+    //     {
+    //         Debug.LogWarning("TargetSelectionState: Confirm (OnConfirm) pressed with no valid target selected.");
+    //     }
+    // }
+
+    // protected override void OnCancel(InputAction.CallbackContext context)
+    // {
+    //     Debug.Log("Target selection cancelled (OnCancel).");
+    //     BattleAction cancelledAction = new BattleAction(_actingCharacter, null, _skillToUse);
+    //     Complete(BattleEvent.TargetSelectionCancelled, cancelledAction);
+    // }
 }

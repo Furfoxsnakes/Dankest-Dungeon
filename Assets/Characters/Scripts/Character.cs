@@ -4,6 +4,8 @@ using DankestDungeon.Skills; // Assuming your enums are here
 using System.Collections.Generic;
 using System.Linq;
 using Sirenix.OdinInspector;
+using DankestDungeon.Characters; // For ActiveStatusEffect
+using DankestDungeon.StatusEffects; // For StatusEffectSO
 
 public class Character : MonoBehaviour
 {
@@ -30,7 +32,10 @@ public class Character : MonoBehaviour
     public CharacterSkills Skills => characterSkills; // Public accessor
 
     private CharacterBuffs characterBuffs;
-    public CharacterBuffs Buffs => characterBuffs; // Public accessor
+    public CharacterBuffs Buffs => characterBuffs;
+
+    private List<ActiveStatusEffect> activeStatusEffects = new List<ActiveStatusEffect>();
+    public IReadOnlyList<ActiveStatusEffect> ActiveStatusEffects => activeStatusEffects.AsReadOnly();
 
 
     public string GetName()
@@ -94,7 +99,8 @@ public class Character : MonoBehaviour
 
         // Initialize Modules
         characterSkills.Initialize(GetName()); // Pass character name for logging
-        characterBuffs = new CharacterBuffs(GetName()); // Pass character name for logging
+        characterBuffs = new CharacterBuffs(GetName());
+        activeStatusEffects = new List<ActiveStatusEffect>(); // Initialize the list
     }
 
     protected virtual void Start()
@@ -145,47 +151,100 @@ public class Character : MonoBehaviour
         }
     }
 
-    public void PlayAnimation(AnimationType type, Character targetForState = null)
+    private Action _internalAnimationCompleteCallback; // For Character's own state machine
+    private Action _externalAnimationCompleteCallback; // For ActionSequenceHandler
+
+    // Called by Character's internal states (e.g., AttackState, CastState, HitState)
+    public void RegisterInternalAnimationCallback(Action newCallback)
     {
-        if (characterAnimator == null && type != AnimationType.None && type != AnimationType.Idle)
-        {
-            Debug.LogWarning($"{GetName()} has no Animator component. Cannot play animation {type}.");
-        }
-        currentAnimationType = type;
-        switch (type)
-        {
-            case AnimationType.Idle: stateMachine.ChangeState(new IdleState(this)); break;
-            case AnimationType.Attack: stateMachine.ChangeState(new AttackState(this, targetForState)); break;
-            case AnimationType.Hit: stateMachine.ChangeState(new HitState(this)); break;
-            case AnimationType.Defend: stateMachine.ChangeState(new DefendState(this)); break;
-            case AnimationType.Cast: stateMachine.ChangeState(new MagicCastState(this, targetForState)); break;
-            case AnimationType.Item: stateMachine.ChangeState(new ItemState(this, targetForState)); break;
-            case AnimationType.Death: stateMachine.ChangeState(new DeathState(this)); break;
-            case AnimationType.None:
-                if (!(GetCurrentState() is IdleState) && IsAlive) stateMachine.ChangeState(new IdleState(this));
-                break;
-            default:
-                Debug.LogWarning($"Unhandled AnimationType '{type}' in PlayAnimation for {GetName()}.");
-                if (characterAnimator != null) { try { characterAnimator.SetTrigger(type.ToString()); } catch (Exception e) { Debug.LogWarning($"Failed to set trigger '{type.ToString()}' for {GetName()}: {e.Message}."); } }
-                if (IsAlive && GetCurrentState() == null) stateMachine.ChangeState(new IdleState(this));
-                break;
-        }
+        _internalAnimationCompleteCallback = newCallback;
     }
 
-    public void Attack(Character target) { if (IsAlive) PlayAnimation(AnimationType.Attack, target); }
-    public void TakeHit() { if (IsAlive) PlayAnimation(AnimationType.Hit); }
-    public void Defend() { if (IsAlive) PlayAnimation(AnimationType.Defend); }
-    public void CastMagic(Character target) { if (IsAlive) PlayAnimation(AnimationType.Cast, target); }
-    public void UseItem(Character target) { if (IsAlive) PlayAnimation(AnimationType.Item, target); }
+    public void ClearInternalAnimationCallback()
+    {
+        _internalAnimationCompleteCallback = null;
+    }
 
-    public void RegisterAnimationCallback(Action callback) => _onAnimationCompleteCallback = callback;
-    public void ClearAnimationCallback() => _onAnimationCompleteCallback = null;
+    // Called by ActionSequenceHandler
+    public void RegisterExternalAnimationCallback(Action newCallback)
+    {
+        _externalAnimationCompleteCallback = newCallback;
+    }
+
+    // Called by CharacterVisuals (or directly by animation events if CharacterVisuals is just a proxy)
     public void OnAnimationComplete()
     {
-        Action callback = _onAnimationCompleteCallback;
-        _onAnimationCompleteCallback = null;
-        callback?.Invoke();
+        // Prioritize invoking the external callback if one is registered,
+        // as ActionSequenceHandler is likely driving the sequence.
+        // Then clear it so it's a one-shot for ASH.
+        Action externalCb = _externalAnimationCompleteCallback;
+        if (externalCb != null)
+        {
+            _externalAnimationCompleteCallback = null; // Clear it immediately
+            Debug.Log($"[{gameObject.name}] Invoking EXTERNAL animation complete callback.");
+            externalCb.Invoke();
+            // Do NOT invoke internal callback if external was present and handled it.
+            // The external system (ASH) is now responsible for the flow.
+            // If the internal state also needs to react, it should be after ASH is done with this step.
+            // This might require ASH to signal the character state machine if needed.
+            // For now, let's assume ASH's callback is sufficient for this specific event.
+        }
+        else
+        {
+            // If no external callback, then it's for the character's internal state machine.
+            Action internalCb = _internalAnimationCompleteCallback;
+            if (internalCb != null)
+            {
+                // Internal callback should also typically be one-shot for a given state's animation.
+                // The state itself should re-register if it needs another one.
+                _internalAnimationCompleteCallback = null; 
+                Debug.Log($"[{gameObject.name}] Invoking INTERNAL animation complete callback.");
+                internalCb.Invoke();
+            }
+            else
+            {
+                Debug.LogWarning($"[{gameObject.name}] OnAnimationComplete called, but no internal or external callback was registered.");
+            }
+        }
     }
+
+    // Modify Character's state machine (e.g., AttackState.Enter) to use RegisterInternalAnimationCallback
+    // Example in AttackState.cs:
+    // public override void Enter() {
+    //    _character.RegisterInternalAnimationCallback(() => {
+    //        _character.HandleStateEvent(CharacterEvent.ActionComplete);
+    //    });
+    //    _character.Visuals.PlayAnimation(AnimationType.Attack, _target);
+    // }
+
+    // Character's PlayAnimation, Attack, TakeHit methods should trigger animations
+    // but NOT necessarily register callbacks themselves. The state (AttackState, HitState)
+    // or external systems (ASH) should register the callbacks they need.
+
+    public void PlayAnimation(AnimationType animType, Character targetForAnim = null)
+    {
+        // This method should primarily tell CharacterVisuals to play the animation.
+        // Callback registration should be done by the caller (ASH or Character's current state).
+        Debug.Log($"[{gameObject.name}] PlayAnimation called: {animType}");
+        PlayAnimation(animType, targetForAnim);
+    }
+
+    public void Attack(Character target)
+    {
+        // This method should primarily tell CharacterVisuals to play the attack animation.
+        // The AttackState should have registered the internal callback.
+        Debug.Log($"[{gameObject.name}] Attack called on {target?.name ?? "null target"}");
+        PlayAnimation(AnimationType.Attack, target); // Or a specific attack animation
+    }
+
+    public void TakeHit()
+    {
+        // This method should primarily tell CharacterVisuals to play the hit animation.
+        // The HitState (if you have one) or ASH should register the callback.
+        Debug.Log($"[{gameObject.name}] TakeHit called");
+        PlayAnimation(AnimationType.Hit);
+    }
+
 
     // --- Stat Getters (incorporating temporary modifiers via CharacterBuffs) ---
     public int GetAttackPower() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.AttackPower, Stats.attackPower));
@@ -243,6 +302,77 @@ public class Character : MonoBehaviour
     }
 
     public void TickTemporaryModifiers() => characterBuffs.TickModifiers();
+
+    // New methods for Status Effects
+    public void ApplyStatusEffect(SkillEffectData effectData, Character caster, float calculatedPotency)
+    {
+        if (effectData.statusEffectToApply == null)
+        {
+            Debug.LogWarning($"[Character] Attempted to apply a null status effect to {GetName()}.");
+            return;
+        }
+
+        // Handle stacking
+        ActiveStatusEffect existingEffect = activeStatusEffects.FirstOrDefault(se => se.Definition == effectData.statusEffectToApply);
+        if (existingEffect != null)
+        {
+            if (effectData.statusEffectToApply.canStack)
+            {
+                existingEffect.CurrentStacks = Mathf.Min(existingEffect.CurrentStacks + 1, effectData.statusEffectToApply.maxStacks);
+                existingEffect.RemainingDuration = effectData.duration; // Refresh duration on stack
+                existingEffect.Potency = calculatedPotency; // Potentially refresh potency
+                Debug.Log($"[Character] Stacked status '{effectData.statusEffectToApply.statusNameKey}' on {GetName()}. Stacks: {existingEffect.CurrentStacks}, Duration: {existingEffect.RemainingDuration}");
+            }
+            else // Overwrite/Refresh
+            {
+                existingEffect.RemainingDuration = effectData.duration;
+                existingEffect.Potency = calculatedPotency;
+                existingEffect.Caster = caster; // Update caster if it can change
+                Debug.Log($"[Character] Refreshed status '{effectData.statusEffectToApply.statusNameKey}' on {GetName()}. Duration: {existingEffect.RemainingDuration}");
+            }
+        }
+        else
+        {
+            ActiveStatusEffect newStatus = new ActiveStatusEffect(
+                effectData.statusEffectToApply,
+                caster,
+                effectData.elementType,
+                calculatedPotency,
+                effectData.duration
+            );
+            activeStatusEffects.Add(newStatus);
+            Debug.Log($"[Character] Applied status '{newStatus.Definition.statusNameKey}' to {GetName()} from {caster.GetName()}. Duration: {newStatus.RemainingDuration}, Potency: {newStatus.Potency}, Element: {newStatus.EffectElementType}");
+            // TODO: Trigger OnApply visual/audio effects from newStatus.Definition
+        }
+    }
+
+    public void TickStatusEffects(SkillEffectProcessor processor)
+    {
+        if (!IsAlive) return;
+
+        // Tick temporary stat modifiers first (like Defend stance)
+        TickTemporaryModifiers();
+
+        // Iterate backwards for safe removal
+        for (int i = activeStatusEffects.Count - 1; i >= 0; i--)
+        {
+            ActiveStatusEffect status = activeStatusEffects[i];
+            
+            // Apply tick effect
+            processor.ProcessStatusEffectTick(this, status); // 'this' is the target
+
+            // Decrement duration
+            status.RemainingDuration--;
+
+            if (status.RemainingDuration <= 0)
+            {
+                Debug.Log($"[Character] Status '{status.Definition.statusNameKey}' expired on {GetName()}.");
+                // TODO: Trigger OnExpire visual/audio effects
+                activeStatusEffects.RemoveAt(i);
+            }
+        }
+    }
+
 
     public virtual void Die()
     {

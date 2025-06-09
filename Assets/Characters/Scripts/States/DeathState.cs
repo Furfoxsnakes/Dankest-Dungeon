@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class DeathState : CharacterState
 {
-    private const string DEATH_ANIMATION_TRIGGER = "Death";
+    private const string DEATH_ANIMATION_TRIGGER = "Death"; // This might be handled by Character.Die() or similar
 
     public DeathState(Character character) : base(character) { }
     
@@ -13,12 +13,13 @@ public class DeathState : CharacterState
         
         if (owner.characterAnimator != null)
         {
-            owner.characterAnimator.SetTrigger(DEATH_ANIMATION_TRIGGER);
-            Debug.Log($"[STATE] {owner.GetName()} triggered '{DEATH_ANIMATION_TRIGGER}' animation.");
+            // The actual animation trigger is likely handled by a Character.Die() method
+            // owner.characterAnimator.SetTrigger(DEATH_ANIMATION_TRIGGER);
+            // Debug.Log($"[STATE] {owner.GetName()} triggered '{DEATH_ANIMATION_TRIGGER}' animation.");
             
-            owner.RegisterAnimationCallback(() => {
-                Debug.Log($"<color=grey>[STATE] {owner.GetName()} Death animation 'completed' (via callback). Completing with DeathComplete event.</color>");
-                Complete(CharacterEvent.DeathComplete); // Signal the death animation sequence is done
+            owner.RegisterInternalAnimationCallback(() => { // Changed to Internal
+                Debug.Log($"<color=grey>[STATE] {owner.GetName()} Death animation 'completed' (via INTERNAL callback). Completing with DeathComplete event.</color>");
+                Complete(CharacterEvent.DeathComplete); 
             });
         }
         else
@@ -31,7 +32,7 @@ public class DeathState : CharacterState
     public override void Exit()
     {
         base.Exit();
-        owner.ClearAnimationCallback();
+        owner.ClearInternalAnimationCallback(); // Changed to Internal
         Debug.Log($"[STATE] {owner.GetName()} exiting DeathState (e.g., revived).");
     }
 

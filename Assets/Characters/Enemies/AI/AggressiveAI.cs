@@ -82,7 +82,7 @@ public class AggressiveAI : AIBehaviorSO
                     else if (skillRank > 0)
                     {
                         Debug.Log($"[AI] {self.GetName()} decided to use SKILL FROM POOL: {chosenSkill.skillNameKey} (Rank {skillRank}) on {primaryTarget?.GetName() ?? "area/self"}");
-                        return new BattleAction(self, primaryTarget, chosenSkill, skillRank);
+                        return new BattleAction(self, primaryTarget, chosenSkill); // Removed skillRank
                     }
                     else
                     {
@@ -119,7 +119,7 @@ public class AggressiveAI : AIBehaviorSO
                 else if (skillRank > 0)
                 {
                     Debug.Log($"[AI] {self.GetName()} decided to use DESIGNATED FALLBACK SKILL: {designatedFallbackSkill.skillNameKey} (Rank {skillRank}) on {primaryTarget?.GetName() ?? "area/self"}");
-                    return new BattleAction(self, primaryTarget, designatedFallbackSkill, skillRank);
+                    return new BattleAction(self, primaryTarget, designatedFallbackSkill); // Removed skillRank
                 }
                 else
                 {

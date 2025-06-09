@@ -10,7 +10,7 @@ public class CombatSystem : MonoBehaviour
     [Header("Component References")]
     [SerializeField] private SkillEffectProcessor skillProcessor;
     [SerializeField] private ActionSequenceHandler actionSequenceHandler;
-    [SerializeField] private TargetingSystem targetingSystem;
+    [SerializeField] private TargetingSystem targetingSystem; // This should be assigned
     [SerializeField] private BattleUI battleUI; // Assign in Inspector
 
     private List<Character> _playerTeamCharacters;
@@ -25,8 +25,27 @@ public class CombatSystem : MonoBehaviour
             // battleUI = FindFirstObjectByType<BattleUI>();
         }
 
-        if (skillProcessor == null) // Ensure skillProcessor is assigned or found
+        if (actionSequenceHandler == null)
+            actionSequenceHandler = GetComponent<ActionSequenceHandler>() ?? gameObject.AddComponent<ActionSequenceHandler>();
+        
+        if (skillProcessor == null)
             skillProcessor = GetComponent<SkillEffectProcessor>() ?? gameObject.AddComponent<SkillEffectProcessor>();
+        
+        if (targetingSystem == null) // Ensure TargetingSystem is either a MonoBehaviour on the same GameObject or assigned
+            targetingSystem = GetComponent<TargetingSystem>(); // Or however you get its reference
+
+        // Crucial call:
+        if (actionSequenceHandler != null && skillProcessor != null && targetingSystem != null)
+        {
+            actionSequenceHandler.Initialize(this, skillProcessor, targetingSystem);
+        }
+        else
+        {
+            Debug.LogError("[CombatSystem] Failed to initialize ActionSequenceHandler due to missing dependencies (ASH, SP, or TS).");
+            if(actionSequenceHandler == null) Debug.LogError("[CombatSystem] actionSequenceHandler is null.");
+            if(skillProcessor == null) Debug.LogError("[CombatSystem] skillProcessor is null.");
+            if(targetingSystem == null) Debug.LogError("[CombatSystem] targetingSystem is null.");
+        }
         
         // Initialize SkillEffectProcessor with BattleUI
         if (skillProcessor != null)
@@ -44,15 +63,6 @@ public class CombatSystem : MonoBehaviour
         {
             Debug.LogError("[CombatSystem] SkillProcessor is not assigned or found.");
         }
-        
-        if (targetingSystem == null)
-            targetingSystem = new TargetingSystem(); // Or GetComponent if it becomes a MonoBehaviour
-
-        if (actionSequenceHandler == null)
-            actionSequenceHandler = GetComponent<ActionSequenceHandler>() ?? gameObject.AddComponent<ActionSequenceHandler>();
-        
-        // Initialize handlers with necessary dependencies
-        actionSequenceHandler.Initialize(this, skillProcessor, targetingSystem);
     }
     
     public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
@@ -95,12 +105,11 @@ public class CombatSystem : MonoBehaviour
     public List<Character> GetPlayerTeamCharacters() => _playerTeamCharacters;
     public List<Character> GetEnemyTeamCharacters() => _enemyTeamCharacters;
     
-    public void ExecuteAction(BattleAction action, Action onComplete)
+    public void ExecuteAction(BattleAction action, System.Action onComplete)
     {
-        // Delegate to ActionSequenceHandler
         if (actionSequenceHandler != null)
         {
-            actionSequenceHandler.ExecuteAction(action, onComplete);
+            actionSequenceHandler.ProcessAction(action, onComplete); // Renamed ExecuteAction to ProcessAction
         }
         else
         {
@@ -108,6 +117,11 @@ public class CombatSystem : MonoBehaviour
             onComplete?.Invoke();
         }
     }
-    
-    // ... (rest of the CombatSystem class)
+
+    public SkillEffectProcessor GetSkillEffectProcessor() => skillProcessor; // Add this getter
+
+    public TargetingSystem GetTargetingSystem() // Add this getter
+    {
+        return targetingSystem;
+    }
 }

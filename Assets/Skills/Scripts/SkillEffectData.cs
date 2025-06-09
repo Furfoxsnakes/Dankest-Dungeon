@@ -1,6 +1,7 @@
 using UnityEngine;
 using Sirenix.OdinInspector; // If you want to use Odin for these nested classes too
 using DankestDungeon.Skills; // Your enums namespace
+using DankestDungeon.StatusEffects; // Ensure this using directive is present
 
 namespace DankestDungeon.Skills
 {
@@ -10,7 +11,12 @@ namespace DankestDungeon.Skills
         [EnumToggleButtons]
         public SkillEffectType effectType;
 
-        [Tooltip("Base value for damage, healing, stat change amount, etc.")]
+        [Tooltip("The elemental type of this effect, for Damage, Healing, or Status Effects.")]
+        [ShowIf("IsElementApplicable")] // Updated condition
+        [EnumToggleButtons]
+        public ElementType elementType = ElementType.Physical;
+
+        [Tooltip("Base value for damage, healing, stat change amount, or status effect potency.")]
         public float baseValue;
 
         [Tooltip("Which of the caster's stats, if any, does this effect scale with?")]
@@ -30,9 +36,9 @@ namespace DankestDungeon.Skills
         [EnumToggleButtons]
         public StatType statToModify = StatType.None;
 
-        // [Tooltip("Reference to a StatusEffect ScriptableObject if applying/clearing a status.")]
-        // [ShowIf("IsStatusEffectRelated")]
-        // public StatusEffectSO statusEffect; // Assuming you have a StatusEffectSO
+        [Tooltip("Reference to a StatusEffect ScriptableObject if applying/clearing a status.")]
+        [ShowIf("IsStatusEffectRelated")]
+        public StatusEffectSO statusEffectToApply; // Ensure this is the correct name
 
         [Tooltip("Chance for this effect to apply (0.0 to 1.0). 1.0 means 100% chance.")]
         [Range(0f, 1f)]
@@ -51,9 +57,17 @@ namespace DankestDungeon.Skills
             return effectType == SkillEffectType.BuffStat || effectType == SkillEffectType.DebuffStat;
         }
 
-        // private bool IsStatusEffectRelated()
-        // {
-        //     return effectType == SkillEffectType.ApplyStatusEffect || effectType == SkillEffectType.ClearStatusEffect;
-        // }
+        // Updated this helper method
+        private bool IsElementApplicable()
+        {
+            return effectType == SkillEffectType.Damage || 
+                   effectType == SkillEffectType.Heal ||
+                   effectType == SkillEffectType.ApplyStatusEffect;
+        }
+
+        private bool IsStatusEffectRelated()
+        {
+            return effectType == SkillEffectType.ApplyStatusEffect || effectType == SkillEffectType.ClearStatusEffect;
+        }
     }
 }

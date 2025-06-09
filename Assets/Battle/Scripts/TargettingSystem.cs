@@ -1,120 +1,126 @@
-using System.Collections.Generic;
 using UnityEngine;
 using DankestDungeon.Skills; // For SkillDefinitionSO, SkillTargetType
-using System.Linq;
-using Random = UnityEngine.Random;
+using DankestDungeon.Characters; // For Character
+using System.Collections.Generic;
+using System.Linq; // For Linq operations like Where, ToList
 
-public class TargetingSystem
+public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem' if not a MonoBehaviour
 {
-	private List<Character> _playerTeamCharacters;
-	private List<Character> _enemyTeamCharacters;
+    private List<Character> _playerTeamCharacters;
+    private List<Character> _enemyTeamCharacters;
 
-	public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
-	{
-		_playerTeamCharacters = playerTeam;
-		_enemyTeamCharacters = enemyTeam;
-	}
-
-	public List<Character> DetermineFinalTargets(Character actor, Character primaryTarget, SkillDefinitionSO skill)
+    // Call this from CombatSystem when teams are set up
+    public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
     {
-        List<Character> finalTargets = new List<Character>();
-        if (skill == null || actor == null)
+        _playerTeamCharacters = playerTeam;
+        _enemyTeamCharacters = enemyTeam;
+    }
+
+    // Add this method
+    public List<Character> GetValidTargets(Character caster, SkillDefinitionSO skill)
+    {
+        if (skill == null || caster == null)
         {
-            Debug.LogError("[TARGETING] Skill or Actor is null.");
-            return finalTargets;
+            Debug.LogError("[TargetingSystem] GetValidTargets called with null skill or caster.");
+            return new List<Character>();
         }
 
-        if (_playerTeamCharacters == null || _enemyTeamCharacters == null)
-        {
-            Debug.LogError("[TARGETING] Teams not initialized in CombatSystem.");
-            return finalTargets;
-        }
+        List<Character> validTargets = new List<Character>();
 
-        List<Character> actorAllies;
-        List<Character> actorOpponents;
-
-        // Determine actor's faction and define allies/opponents accordingly
-        if (_playerTeamCharacters.Contains(actor))
-        {
-            actorAllies = _playerTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
-            actorOpponents = _enemyTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
-        }
-        else if (_enemyTeamCharacters.Contains(actor))
-        {
-            actorAllies = _enemyTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
-            actorOpponents = _playerTeamCharacters.Where(c => c != null && c.IsAlive).ToList();
-        }
-        else
-        {
-            Debug.LogError($"[TARGETING] Actor {actor.GetName()} not found in any initialized team!");
-            return finalTargets;
-        }
+        // Determine which team is friendly and which is hostile relative to the caster
+        bool isCasterPlayer = _playerTeamCharacters.Contains(caster);
+        List<Character> friendlyTeam = isCasterPlayer ? _playerTeamCharacters : _enemyTeamCharacters;
+        List<Character> hostileTeam = isCasterPlayer ? _enemyTeamCharacters : _playerTeamCharacters;
 
         switch (skill.targetType)
         {
-            case SkillTargetType.SingleEnemy:
-                if (primaryTarget != null && primaryTarget.IsAlive && actorOpponents.Contains(primaryTarget))
+            case SkillTargetType.Self:
+                if (caster.IsAlive)
                 {
-                    finalTargets.Add(primaryTarget);
+                    validTargets.Add(caster);
                 }
-                else
-                {
-                    // Fallback: pick a random opponent if primary target is invalid
-                    if (actorOpponents.Any())
-                    {
-                        Debug.LogWarning($"[TARGETING] SingleEnemy skill by {actor.GetName()} had invalid primary target. Targeting random enemy.");
-                        finalTargets.Add(actorOpponents[Random.Range(0, actorOpponents.Count)]);
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[TARGETING] SingleEnemy skill by {actor.GetName()} has no valid targets.");
-                    }
-                }
-                break;
-
-            case SkillTargetType.AllEnemies:
-                finalTargets.AddRange(actorOpponents);
                 break;
 
             case SkillTargetType.SingleAlly:
-                if (primaryTarget != null && primaryTarget.IsAlive && actorAllies.Contains(primaryTarget))
-                {
-                    finalTargets.Add(primaryTarget);
-                }
-                else
-                {
-                    // Fallback: pick a random ally if primary target is invalid
-                    if (actorAllies.Any())
-                    {
-                         Debug.LogWarning($"[TARGETING] SingleAlly skill by {actor.GetName()} had invalid primary target. Targeting random ally.");
-                        finalTargets.Add(actorAllies[Random.Range(0, actorAllies.Count)]);
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[TARGETING] SingleAlly skill by {actor.GetName()} has no valid targets.");
-                    }
-                }
+                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                break;
+
+            case SkillTargetType.SingleEnemy:
+                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
                 break;
 
             case SkillTargetType.AllAllies:
-                finalTargets.AddRange(actorAllies);
+                // For "All" types, TargetSelectionState might not even be entered.
+                // But if it is, or if this method is used elsewhere, it should return all valid allies.
+                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
                 break;
 
-            case SkillTargetType.Self:
-                if (actor.IsAlive)
-                {
-                    finalTargets.Add(actor);
-                }
+            case SkillTargetType.AllEnemies:
+                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
                 break;
 
-            case SkillTargetType.None:
-                // No specific targets needed, but skill might still affect areas or global state.
+            case SkillTargetType.AllyRow:
+                // Placeholder: Implement row-based targeting.
+                // You'll need a way to know which row characters are in.
+                // This might involve checking their position in the formationManager.
+                Debug.LogWarning("AllyRow targeting not fully implemented in GetValidTargets.");
+                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive)); // Fallback to all allies for now
+                break;
+
+            case SkillTargetType.EnemyRow:
+                // Placeholder: Implement row-based targeting.
+                Debug.LogWarning("EnemyRow targeting not fully implemented in GetValidTargets.");
+                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive)); // Fallback to all enemies for now
+                break;
+            
+            case SkillTargetType.None: // Skills that don't target anyone specifically (e.g. some summons)
+                // No specific targets to select
                 break;
 
             default:
-                Debug.LogError($"[TARGETING] Unhandled SkillTargetType: {skill.targetType} for skill {skill.skillNameKey}");
+                Debug.LogWarning($"[TargetingSystem] Unhandled SkillTargetType: {skill.targetType} for skill {skill.skillNameKey}");
                 break;
         }
-        return finalTargets;
+
+        // Further filtering can be done here, e.g., for skills that can only target characters with specific status effects,
+        // or based on range if you implement that.
+
+        return validTargets;
+    }
+
+    // You might also have a GetTargetsForSkill method used by ActionSequenceHandler
+    // for AoE skills that don't go through manual selection.
+    public List<Character> GetTargetsForSkill(Character caster, SkillDefinitionSO skillDef, List<Character> allPlayers, List<Character> allEnemies)
+    {
+        if (skillDef == null || caster == null) return new List<Character>();
+
+        List<Character> resolvedTargets = new List<Character>();
+        bool isCasterPlayer = allPlayers.Contains(caster);
+        List<Character> friendlyTeam = isCasterPlayer ? allPlayers : allEnemies;
+        List<Character> hostileTeam = isCasterPlayer ? allEnemies : allPlayers;
+
+        switch (skillDef.targetType)
+        {
+            case SkillTargetType.Self:
+                if (caster.IsAlive) resolvedTargets.Add(caster);
+                break;
+            case SkillTargetType.AllAllies:
+                resolvedTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                break;
+            case SkillTargetType.AllEnemies:
+                resolvedTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                break;
+            case SkillTargetType.SingleAlly:
+            case SkillTargetType.SingleEnemy:
+                // For single-target skills, ActionSequenceHandler should use action.Target.
+                // This method is primarily for resolving targets for AoE, Self, etc.
+                // Returning an empty list here is expected for these cases in this method.
+                break; // No warning, just break and return empty resolvedTargets.
+             // Add other cases like AllyRow, EnemyRow if they are resolved here for AoE application
+            default:
+                Debug.LogWarning($"[TargetingSystem] GetTargetsForSkill: Unhandled or inappropriate SkillTargetType: {skillDef.targetType}");
+                break;
+        }
+        return resolvedTargets;
     }
 }

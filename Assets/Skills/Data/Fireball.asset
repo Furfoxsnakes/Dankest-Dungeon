@@ -31,16 +31,20 @@ MonoBehaviour:
     critMod: 0
     effects:
     - effectType: 0
+      elementType: 1
       baseValue: 3
-      scalingStat: 9
+      scalingStat: 6
       scalingMultiplier: 1
       duration: 1
       statToModify: 0
+      statusEffectToApply: {fileID: 0}
       chance: 1
     - effectType: 4
+      elementType: 1
       baseValue: 1
-      scalingStat: 9
+      scalingStat: 6
       scalingMultiplier: 1
       duration: 3
       statToModify: 0
+      statusEffectToApply: {fileID: 11400000, guid: 134d08035706cb2429df739ebb8596d8, type: 2}
       chance: 1

@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b646597d74c19724bb304c4d32069cbf, type: 3}
+  m_Name: BurningStatus
+  m_EditorClassIdentifier: 
+  statusId: 6e045b9c-9e21-442f-b33b-100ad233027d
+  statusNameKey: Burning
+  descriptionKey: Burns the target over 3 turns
+  icon: {fileID: -6207678008644054968, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
+  tickEffectType: 1
+  isBuff: 0
+  canStack: 0
+  maxStacks: 1
+  baseTickValue: 1
+  statToModify: 0
+  statModValue: 0

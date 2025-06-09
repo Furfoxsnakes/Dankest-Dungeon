@@ -16,13 +16,13 @@ public class AttackState : CharacterState
 
         if (owner.characterAnimator != null)
         {
-            owner.characterAnimator.SetTrigger("Attack");
-            Debug.Log($"[STATE] {owner.GetName()} triggered 'Attack' animation.");
-
-            owner.RegisterAnimationCallback(() => {
-                Debug.Log($"<color=green>[STATE] {owner.GetName()} Attack animation complete (via callback). Completing with event.</color>");
+            owner.RegisterInternalAnimationCallback(() => { // Changed to Internal
+                Debug.Log($"<color=green>[STATE] {owner.GetName()} Attack animation complete (via INTERNAL callback). Completing with event.</color>");
                 Complete(CharacterEvent.AttackComplete);
             });
+            // Note: The actual playing of the animation (e.g., owner.Attack(target) or owner.PlayAnimation(Attack))
+            // is now expected to be triggered by ActionSequenceHandler, which then waits for an *external* callback.
+            // This internal callback is for the AttackState's own lifecycle if it needs to react to its animation ending.
         }
         else
         {
@@ -34,7 +34,7 @@ public class AttackState : CharacterState
     public override void Exit()
     {
         base.Exit();
-        owner.ClearAnimationCallback(); 
+        owner.ClearInternalAnimationCallback(); // Changed to Internal
         Debug.Log($"[STATE] {owner.GetName()} exited AttackState.");
     }
 

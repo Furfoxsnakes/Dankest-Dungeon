@@ -73,6 +73,7 @@
     <Compile Include="Assets\Battle\Scripts\States\PlayerTurnState.cs" />
     <Compile Include="Assets\Characters\Scripts\States\HitState.cs" />
     <Compile Include="Assets\Battle\Scripts\States\EnemyTurnState.cs" />
+    <Compile Include="Assets\Skills\Scripts\StatusEffectSO.cs" />
     <Compile Include="Assets\Settings\Scenes\NewSceneTemplatePipeline.cs" />
     <Compile Include="Assets\Characters\Scripts\CharacterBuffs.cs" />
     <Compile Include="Assets\Skills\Scripts\SkillEffectResults.cs" />
@@ -103,6 +104,7 @@
     <Compile Include="Assets\Characters\Enemies\Enemy.cs" />
     <Compile Include="Assets\Battle\Scripts\States\StartState.cs" />
     <Compile Include="Assets\Characters\Player\Hero.cs" />
+    <Compile Include="Assets\Characters\Scripts\ActiveStatusEffect.cs" />
     <Compile Include="Assets\Characters\Scripts\States\ItemState.cs" />
     <Compile Include="Assets\Battle\Scripts\FormationData.cs" />
   </ItemGroup>

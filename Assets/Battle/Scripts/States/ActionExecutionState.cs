@@ -3,10 +3,11 @@ using DankestDungeon.Skills;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections;
+using DankestDungeon.Characters; // Assuming Player class is in this namespace
 
 public class ActionExecutionState : BattleState
 {
-    private BattleAction currentAction;
+    private BattleAction currentAction; // This is the correct field
     private CombatSystem combatSystem;
     private bool _executionComplete = false;
 
@@ -15,22 +16,47 @@ public class ActionExecutionState : BattleState
         this.currentAction = action;
         this.combatSystem = manager.GetCombatSystem();
         if (combatSystem == null) Debug.LogError("CombatSystem not found for ActionExecutionState.");
+        if (this.currentAction == null) Debug.LogError("ActionExecutionState initialized with a null action.");
     }
 
     public override void Enter()
     {
-        _executionComplete = false;
-        Debug.Log($"<color=green>Action Execution: Enter. Actor: {currentAction.Actor.GetName()}, ActionType: {currentAction.ActionType}, Skill: {currentAction.UsedSkill?.skillNameKey}</color>");
-
-        if (currentAction.Actor == null || !currentAction.Actor.IsAlive)
+        Debug.Log("<color=orange>Action Execution: Enter</color>");
+        if (currentAction == null) // Use currentAction here
         {
-            Debug.LogWarning($"Actor {currentAction.Actor?.GetName()} is null or not alive. Skipping action.");
-            _executionComplete = true;
+            Debug.LogError("ActionExecutionState entered with no action to execute (currentAction is null).");
+            Complete(BattleEvent.ActionFullyComplete, null); // Or some error event
             return;
         }
-        
-        // Delegate to CombatSystem for all action execution
-        combatSystem.ExecuteAction(currentAction, OnActionComplete);
+
+        Debug.Log($"Executing action: {(currentAction.ActionType == ActionType.Skill ? currentAction.UsedSkill?.skillNameKey : currentAction.ActionType.ToString())} by {currentAction.Actor?.GetName()} on {currentAction.Target?.GetName() ?? "N/A"}");
+
+        ActionSequenceHandler ash = battleManager.GetActionSequenceHandler();
+        if (ash != null)
+        {
+            ash.ProcessAction(currentAction, () => // Use currentAction here
+            {
+                // Determine the correct event based on whose action it was
+                // Ensure currentAction and currentAction.Actor are not null before accessing GetComponent
+                BattleEvent completionEvent = BattleEvent.ActionFullyComplete; // Default event
+                if (currentAction != null && currentAction.Actor != null)
+                {
+                    // Ensure Hero class is known here (either via using directive or fully qualified name)
+                    completionEvent = (currentAction.Actor.GetComponent<Hero>() != null) ? BattleEvent.ActionFullyComplete : BattleEvent.EnemyActionComplete;
+                }
+                else
+                {
+                    Debug.LogWarning("currentAction or currentAction.Actor is null when determining completion event.");
+                }
+                Complete(completionEvent, currentAction); // Use currentAction here
+            });
+        }
+        else
+        {
+            Debug.LogError("ActionSequenceHandler is null in ActionExecutionState. Cannot process action.");
+            // Decide how to complete if ASH is null. Maybe an error event or just skip.
+            Complete(BattleEvent.ActionFullyComplete, currentAction); // Or pass null if action couldn't be processed
+        }
     }
 
     private void OnActionComplete()

@@ -5,10 +5,12 @@ using DankestDungeon.Skills; // For SkillDefinitionSO
 
 public class BattleManager : MonoBehaviour
 {
-    [SerializeField] private CombatSystem combatSystem;
+    [Header("Core Systems")]
+    [SerializeField] private CombatSystem combatSystem; // Ensure this is assigned in the Inspector
     [SerializeField] private TurnSystem turnSystem;
     [SerializeField] private FormationManager formationManager;
-    [SerializeField] private BattleUI battleUI; // Added BattleUI reference
+    [SerializeField] private BattleUI battleUI;
+    [SerializeField] private ActionSequenceHandler actionSequenceHandler; // If BattleManager directly holds it
     
     [Header("Formation Settings")]
     [SerializeField] private FormationData playerFormation; // Direct reference instead of string
@@ -39,7 +41,19 @@ public class BattleManager : MonoBehaviour
     public TurnSystem GetTurnSystem() => turnSystem;
     
     public CombatSystem GetCombatSystem() => combatSystem;
-    
+
+    public ActionSequenceHandler GetActionSequenceHandler() => actionSequenceHandler; // Or get from CombatSystem if it's there
+
+    public TargetingSystem GetTargetingSystem() // Add this method
+    {
+        if (combatSystem != null)
+        {
+            return combatSystem.GetTargetingSystem();
+        }
+        Debug.LogError("[BattleManager] CombatSystem is not assigned. Cannot get TargetingSystem.");
+        return null; // Or handle this error more gracefully
+    }
+
     public FormationManager GetFormationManager() => formationManager;
 
     public UIManager uiManager; // Make sure this is assigned or found correctly if BattleUI is on UIManager
@@ -138,29 +152,38 @@ public class BattleManager : MonoBehaviour
                         AdvanceTurn();
                         break;
                     }
-                    int skillRank = currentActor.GetSkillRank(selectedSkill);
+                    // int skillRank = currentActor.GetSkillRank(selectedSkill); // skillRank is not passed to BattleAction or TargetSelectionState constructor
+                    // Skill rank will be used by SkillEffectProcessor when effects are calculated.
 
-                    if (skillRank == 0) {
-                        Debug.LogError($"[BATTLE MANAGER] Actor {currentActor.GetName()} does not know skill {selectedSkill.skillNameKey} or rank is 0. UI should prevent this.");
-                        stateMachine.ChangeState(new PlayerTurnState(this)); 
-                        break;
-                    }
+                    // if (skillRank == 0) { // This check is still valid
+                    //     Debug.LogError($"[BATTLE MANAGER] Actor {currentActor.GetName()} does not know skill {selectedSkill.skillNameKey} or rank is 0. UI should prevent this.");
+                    //     stateMachine.ChangeState(new PlayerTurnState(this)); 
+                    //     break;
+                    // }
                     
-                    Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected skill: {selectedSkill.skillNameKey} (Rank {skillRank}) by {currentActor.GetName()}.</color>");
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected skill: {selectedSkill.skillNameKey} by {currentActor.GetName()}.</color>");
 
                     bool needsTargeting = selectedSkill.targetType == SkillTargetType.SingleEnemy ||
                                           selectedSkill.targetType == SkillTargetType.SingleAlly ||
                                           selectedSkill.targetType == SkillTargetType.EnemyRow || 
                                           selectedSkill.targetType == SkillTargetType.AllyRow;   
 
+
                     if (needsTargeting)
                     {
-                        BattleAction actionInProgress = new BattleAction(currentActor, selectedSkill, skillRank);
-                        stateMachine.ChangeState(new TargetSelectionState(this, actionInProgress));
+                        // Pass currentActor and selectedSkill directly to TargetSelectionState
+                        stateMachine.ChangeState(new TargetSelectionState(this, currentActor, selectedSkill));
                     }
                     else 
                     {
-                        BattleAction skillAction = new BattleAction(currentActor, null, selectedSkill, skillRank); 
+                        // For no-target skills, target in BattleAction can be null or self.
+                        // ActionSequenceHandler will resolve targets like AllEnemies/AllAllies.
+                        Character targetForNoTargetSkill = null;
+                        if (selectedSkill.targetType == SkillTargetType.Self)
+                        {
+                            targetForNoTargetSkill = currentActor;
+                        }
+                        BattleAction skillAction = new BattleAction(currentActor, targetForNoTargetSkill, selectedSkill); 
                         stateMachine.ChangeState(new ActionExecutionState(this, skillAction));
                     }
                 }
@@ -316,5 +339,15 @@ public class BattleManager : MonoBehaviour
                 Debug.LogWarning($"<color=red>[BATTLE MANAGER] State completed with non-BattleEvent result: {result}</color>");
             }
         }
+    }
+
+    public SkillEffectProcessor GetSkillEffectProcessor()
+    {
+        if (combatSystem != null)
+        {
+            return combatSystem.GetSkillEffectProcessor();
+        }
+        Debug.LogError("[BattleManager] CombatSystem reference is missing, cannot provide SkillEffectProcessor.");
+        return null;
     }
 }
