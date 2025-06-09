@@ -48,8 +48,7 @@ public class StartState : BattleState
         turnSystem.Initialize(battleManager.GetPlayerCharacters(), battleManager.GetEnemyCharacters());
         
         var combatSystem = battleManager.GetCombatSystem();
-        // Updated method name here
-        combatSystem.InitializeTeams(battleManager.GetPlayerCharacters(), battleManager.GetEnemyCharacters());
+        combatSystem.Initialize(battleManager.GetPlayerCharacters(), battleManager.GetEnemyCharacters());
         
         // Set up UI elements for battle
         SetupBattleUI();

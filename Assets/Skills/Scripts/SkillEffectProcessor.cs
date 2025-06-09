@@ -1,30 +1,14 @@
 using UnityEngine;
 using DankestDungeon.Skills; // Assuming StatType and other enums are here
-using DankestDungeon.Characters; // For ActiveStatusEffect
-using DankestDungeon.StatusEffects; // For StatusEffectSO
+// It's good practice to include using directives for types used in public method signatures
+// if they are in different namespaces, though BattleUI might be in the global namespace or a common one.
+// using YourNamespace.UI; // If BattleUI is in a specific namespace
 
 public class SkillEffectProcessor : MonoBehaviour
 {
     [Header("Global Settings")]
-    [SerializeField] private float baseCritMultiplier = 1.5f;
-    [SerializeField] private int minimumDamage = 1;
-
-    private BattleUI battleUI; // Add this field to store the reference
-
-    // ---- Add this Initialize method ----
-    public void Initialize(BattleUI ui)
-    {
-        this.battleUI = ui;
-        if (this.battleUI == null)
-        {
-            Debug.LogError("[SkillEffectProcessor] Initialization with a null BattleUI reference!");
-        }
-        else
-        {
-            Debug.Log("[SkillEffectProcessor] Initialized successfully with BattleUI.");
-        }
-    }
-    // ---- End of new method ----
+    [SerializeField] private float baseCritMultiplier = 1.5f; // Make sure this is used by your CalculateDamageValue
+    [SerializeField] private int minimumDamage = 1; // Make sure this is used
 
     // This is your existing method that returns DamageEffectResult - KEEP THIS
     public DamageEffectResult CalculateDamageEffect(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData)
@@ -77,88 +61,6 @@ public class SkillEffectProcessor : MonoBehaviour
         };
     }
     
-    // New method to calculate the application of a status effect
-    public StatusEffectApplicationResult CalculateStatusEffectApplication(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData)
-    {
-        if (target == null || caster == null || effectData.statusEffectToApply == null)
-            return new StatusEffectApplicationResult { success = false };
-
-        bool success = Random.value <= effectData.chance;
-        if (!success)
-        {
-            Debug.Log($"[SKILL PROCESSOR] Status effect '{effectData.statusEffectToApply.statusNameKey}' failed to apply to {target.GetName()} due to chance.");
-            return new StatusEffectApplicationResult { success = false, statusEffectName = effectData.statusEffectToApply.statusNameKey };
-        }
-
-        // Potency for the status effect (e.g., damage per tick) is calculated here
-        // This uses the same scaling as other effects.
-        float potency = CalculateValueWithScaling(caster, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
-
-        Debug.Log($"[SKILL PROCESSOR] Calculated status effect application for {target.GetName()}: '{effectData.statusEffectToApply.statusNameKey}', Duration: {effectData.duration}, Potency: {potency}, Element: {effectData.elementType}");
-        return new StatusEffectApplicationResult
-        {
-            // statusEffectToApply = effectData.statusEffectToApply, // We'll pass effectData directly to Character
-            statusEffectName = effectData.statusEffectToApply.statusNameKey,
-            duration = effectData.duration,
-            elementType = effectData.elementType,
-            potency = potency,
-            success = true
-        };
-    }
-    
-    // New method to process a single tick of an active status effect
-    public void ProcessStatusEffectTick(Character target, ActiveStatusEffect activeEffect)
-    {
-        if (target == null || !target.IsAlive || activeEffect == null) return;
-
-        StatusEffectSO definition = activeEffect.Definition;
-        float tickPotency = activeEffect.Potency; // Potency was set at application time
-
-        // Debug.Log($"[SKILL PROCESSOR] Ticking status '{definition.statusNameKey}' on {target.GetName()}. Type: {definition.tickEffectType}, Potency: {tickPotency}");
-
-        switch (definition.tickEffectType)
-        {
-            case StatusEffectTickType.DamageOverTime:
-                int damageAmount = Mathf.Max(minimumDamage, Mathf.RoundToInt(tickPotency));
-                // Future: Consider resistances to activeEffect.EffectElementType
-                // For now, direct damage.
-                // Create a simple DamageEffectResult for display purposes
-                DamageEffectResult tickDamageResult = new DamageEffectResult
-                {
-                    finalDamage = damageAmount,
-                    isCrit = false, // Ticks usually don't crit unless specified
-                    success = true,
-                    elementType = activeEffect.EffectElementType // Use the element from application
-                };
-                ApplyAndDisplayDamage(target, tickDamageResult); // Re-use existing display logic
-                Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' dealt {damageAmount} {activeEffect.EffectElementType} damage to {target.GetName()}.");
-                break;
-
-            case StatusEffectTickType.HealOverTime:
-                int healAmount = Mathf.Max(1, Mathf.RoundToInt(tickPotency)); // Minimum 1 heal
-                HealEffectResult tickHealResult = new HealEffectResult
-                {
-                    finalHeal = healAmount,
-                    isCrit = false,
-                    success = true,
-                    elementType = activeEffect.EffectElementType // e.g., ElementType.Healing or ElementType.Holy
-                };
-                ApplyAndDisplayHeal(target, tickHealResult);
-                Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' healed {target.GetName()} for {healAmount} {activeEffect.EffectElementType}.");
-                break;
-
-            case StatusEffectTickType.StatModification:
-                // This type of status effect would typically apply/remove a TemporaryModifier
-                // via CharacterBuffs when it's applied and when it expires.
-                // Ticking logic for stat mods is less common unless the value changes each turn.
-                // For now, we assume stat mods are handled by CharacterBuffs directly or on application/removal of status.
-                Debug.LogWarning($"[SKILL PROCESSOR] StatModification tick for '{definition.statusNameKey}' not fully implemented for per-turn changes. Applied/Removed via CharacterBuffs typically.");
-                break;
-            case StatusEffectTickType.None:
-                break;
-        }
-    }
-
     public float CalculateValueWithScaling(Character caster, float baseValue, StatType scalingStat, float scalingMultiplier)
     {
         float finalValue = baseValue;
@@ -170,6 +72,7 @@ public class SkillEffectProcessor : MonoBehaviour
         return finalValue;
     }
 
+    // Your internal calculation helpers:
     private float CalculateDamageValue(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData, out bool isCrit)
     {
         float totalDamage = CalculateValueWithScaling(caster, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
@@ -251,42 +154,12 @@ public class SkillEffectProcessor : MonoBehaviour
             return;
         }
 
-        target.TakeDamage(damageResult.finalDamage); // Future: Pass damageResult.elementType here for resistance calculation
+        target.TakeDamage(damageResult.finalDamage); 
 
         if (battleUI != null)
         {
-            BattleUI.DamageNumberType displayType;
-            if (damageResult.isCrit)
-            {
-                // Determine critical display type based on element
-                switch (damageResult.elementType)
-                {
-                    case ElementType.Fire:
-                        displayType = BattleUI.DamageNumberType.CriticalFireDamage;
-                        break;
-                    // Add cases for other elements if they have unique critical popups
-                    case ElementType.Physical:
-                    default:
-                        displayType = BattleUI.DamageNumberType.CriticalDamage;
-                        break;
-                }
-            }
-            else
-            {
-                // Determine normal display type based on element
-                switch (damageResult.elementType)
-                {
-                    case ElementType.Fire:
-                        displayType = BattleUI.DamageNumberType.FireDamage;
-                        break;
-                    // Add cases for other elements
-                    case ElementType.Physical:
-                    default:
-                        displayType = BattleUI.DamageNumberType.NormalDamage;
-                        break;
-                }
-            }
-            battleUI.ShowDamageNumber(target, damageResult.finalDamage, displayType);
+            BattleUI.DamageNumberType type = damageResult.isCrit ? BattleUI.DamageNumberType.CriticalDamage : BattleUI.DamageNumberType.NormalDamage;
+            battleUI.ShowDamageNumber(target, damageResult.finalDamage, type);
         }
         else
         {
@@ -302,22 +175,14 @@ public class SkillEffectProcessor : MonoBehaviour
             return;
         }
 
-        target.HealDamage(healResult.finalHeal); // Future: Pass healResult.elementType for heal effectiveness modifiers
+        target.HealDamage(healResult.finalHeal);
 
         if (battleUI != null)
         {
-            BattleUI.DamageNumberType displayType;
-            // Assuming ElementType.Healing for standard heals, or specific types like Holy.
-            if (healResult.elementType == ElementType.Healing || healResult.elementType == ElementType.Holy) // Example
-            {
-                displayType = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal;
-            }
-            else // Fallback or other elemental "heals" (e.g. lifesteal as Shadow)
-            {
-                displayType = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal; // Default heal visuals
-                // Or you could have BattleUI.DamageNumberType.ShadowHeal etc.
-            }
-            battleUI.ShowDamageNumber(target, healResult.finalHeal, displayType);
+            BattleUI.DamageNumberType type = BattleUI.DamageNumberType.Heal;
+            // If you add a specific CriticalHeal type:
+            // BattleUI.DamageNumberType type = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal;
+            battleUI.ShowDamageNumber(target, healResult.finalHeal, type);
         }
         else
         {

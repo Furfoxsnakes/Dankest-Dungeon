@@ -5,9 +5,8 @@ using UnityEngine.InputSystem;
 using GameInput; // Assuming your PlayerControls is in this namespace
 using System.Collections.Generic; // For List
 using DankestDungeon.Skills;
-using System;
-using DamageNumbersPro;   // For SkillDefinitionSO
-using TMPro; // If your DamageNumberGUI prefab uses TextMeshPro for display, otherwise remove
+using System;   // For SkillDefinitionSO
+using DamageNumbersPro;
 
 
 public class BattleUI : MonoBehaviour
@@ -24,16 +23,7 @@ public class BattleUI : MonoBehaviour
     [SerializeField] private Canvas battleUICanvas;
     [SerializeField] private GameObject actionButtonsPanel; // Panel containing your action buttons
     [SerializeField] private GameObject partyInfoPanel;
-    // [SerializeField] private DamageNumber NormalHitDamageNumberPrefab; // This will be replaced by more specific ones
-
-    [Header("Damage Number Prefabs")]
-    [SerializeField] private DamageNumber normalDamagePrefab;
-    [SerializeField] private DamageNumber criticalDamagePrefab;
-    [SerializeField] private DamageNumber healPrefab;
-    [SerializeField] private DamageNumber criticalHealPrefab;
-    [SerializeField] private DamageNumber fireDamagePrefab;
-    [SerializeField] private DamageNumber criticalFireDamagePrefab;
-    // Add more elemental prefabs as needed (e.g., iceDamagePrefab, poisonTickPrefab)
+    [SerializeField] private DamageNumber NormalHitDamageNumberPrefab; // Using DamageNumberPro asset
 
     [Header("Action Buttons")]
     [SerializeField] private GameObject actionButtonPrefab; // Assign your ActionButton prefab
@@ -51,14 +41,7 @@ public class BattleUI : MonoBehaviour
         NormalDamage,
         CriticalDamage,
         Heal,
-        CriticalHeal,
-        StatusEffect,
-        FireDamage,
-        CriticalFireDamage,
-        IceDamage, // Example for future
-        CriticalIceDamage, // Example for future
-        PoisonTick, // Example for future
-        Miss
+        StatusEffect
         // Add more as needed
     }
 
@@ -323,62 +306,44 @@ public class BattleUI : MonoBehaviour
             return;
         }
 
-        DamageNumber prefabToSpawn = null;
-
-        switch (type)
+        if (NormalHitDamageNumberPrefab == null)
         {
-            case DamageNumberType.NormalDamage:
-                prefabToSpawn = normalDamagePrefab;
-                break;
-            case DamageNumberType.CriticalDamage:
-                prefabToSpawn = criticalDamagePrefab != null ? criticalDamagePrefab : normalDamagePrefab;
-                break;
-            case DamageNumberType.Heal:
-                prefabToSpawn = healPrefab;
-                break;
-            case DamageNumberType.CriticalHeal:
-                prefabToSpawn = criticalHealPrefab != null ? criticalHealPrefab : healPrefab;
-                break;
-            case DamageNumberType.FireDamage:
-                prefabToSpawn = fireDamagePrefab != null ? fireDamagePrefab : normalDamagePrefab; // Fallback to normal if specific not set
-                break;
-            case DamageNumberType.CriticalFireDamage:
-                prefabToSpawn = criticalFireDamagePrefab != null ? criticalFireDamagePrefab : (fireDamagePrefab != null ? fireDamagePrefab : criticalDamagePrefab); // Fallback chain
-                break;
-            // Add cases for IceDamage, CriticalIceDamage, PoisonTick, Miss, etc.
-            // case DamageNumberType.IceDamage:
-            //     prefabToSpawn = iceDamagePrefab != null ? iceDamagePrefab : normalDamagePrefab;
-            //     break;
-            // case DamageNumberType.PoisonTick:
-            //     prefabToSpawn = poisonTickPrefab != null ? poisonTickPrefab : normalDamagePrefab;
-            //     break;
-            // case DamageNumberType.Miss:
-            //     // Handle text like "Miss" - DamageNumbersPro might have a different way to spawn text-only popups
-            //     // For now, assuming it uses a DamageNumber prefab that just shows text.
-            //     // prefabToSpawn = missTextPrefab; // You'd need a 'missTextPrefab' field
-            //     // if (missTextPrefab != null) {
-            //     //    missTextPrefab.Spawn(target.transform.position + new Vector3(0, 0.25f, 0), "Miss"); // Or however DNP handles text
-            //     //    return; // Early exit if handled differently
-            //     // }
-            //     break;
-            default:
-                Debug.LogWarning($"No specific prefab configured for DamageNumberType '{type}'. Falling back to normal damage prefab.");
-                prefabToSpawn = normalDamagePrefab;
-                break;
-        }
-
-        if (prefabToSpawn == null)
-        {
-            Debug.LogError($"Fallback prefab (normalDamagePrefab) is not assigned in BattleUI, or selected prefab for type '{type}' is null.");
+            Debug.LogError("NormalHitDamageNumberPrefab is not assigned in BattleUI.");
             return;
         }
 
-        Vector3 spawnPosition = target.transform.position + new Vector3(0, 0.25f, 0);
-        var spawnedNumber = prefabToSpawn.Spawn(spawnPosition, amount);
+        // Determine which prefab to use based on type (for future expansion)
+        var prefabToSpawn = NormalHitDamageNumberPrefab; // Default
+        // TODO: Add logic to select different prefabs or apply different settings based on 'type'
+        // e.g., if (type == DamageNumberType.CriticalDamage && CriticalHitDamageNumberPrefab != null) prefabToSpawn = CriticalHitDamageNumberPrefab;
 
-        if (spawnedNumber == null)
+        if (prefabToSpawn != null)
         {
-            Debug.LogError($"Failed to spawn damage number for target {target.GetName()} with amount {amount} using prefab {prefabToSpawn.name}. Check DamageNumbersPro setup.");
+            Debug.Log($"Spawning damage number for target {target.GetName()} with amount {amount} and type {type}.");
+            // DamageNumbersPro typically requires you to call Spawn on the prefab instance.
+            // The Spawn method usually takes a position and the number.
+            // Adjust the spawn position if needed (e.g., above the target's head)
+            Vector3 spawnPosition = target.transform.position + new Vector3(0, 0.1f, 0); // Example offset
+
+            // Spawn the damage number using DamageNumbersPro's API
+            // The exact method might vary based on DamageNumbersPro version,
+            // but it's commonly prefab.Spawn(position, number) or similar.
+            var spawnedNumber = prefabToSpawn.Spawn(spawnPosition, amount);
+
+            // You can further customize the spawnedNumber instance here if needed,
+            // for example, setting color based on 'type' if the prefab supports it directly
+            // or if you have a script on the prefab to handle this.
+            // e.g., if (type == DamageNumberType.Heal) spawnedNumber.SetColor(Color.green);
+            // This depends heavily on how your DamageNumberGUI prefab and DamageNumbersPro are set up.
+
+            if (spawnedNumber == null)
+            {
+                Debug.LogError($"Failed to spawn damage number for target {target.GetName()} with amount {amount}. Check DamageNumbersPro setup.");
+            }
+        }
+        else
+        {
+            Debug.LogError($"Prefab for DamageNumberType '{type}' is not available.");
         }
     }
     // ---- End New Method ----
