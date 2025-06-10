@@ -123,4 +123,95 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
         }
         return resolvedTargets;
     }
+
+    public List<Character> DetermineFinalTargets(Character caster, Character primaryTarget, SkillDefinitionSO skill)
+    {
+        List<Character> finalTargets = new List<Character>();
+        if (skill == null || caster == null)
+        {
+            Debug.LogError("[TargetingSystem] DetermineFinalTargets called with null skill or caster.");
+            return finalTargets;
+        }
+
+        if (_playerTeamCharacters == null || _enemyTeamCharacters == null)
+        {
+            Debug.LogError("[TargetingSystem] Teams not initialized. Call InitializeTeams first.");
+            return finalTargets;
+        }
+
+        bool isCasterPlayer = _playerTeamCharacters.Contains(caster);
+        List<Character> friendlyTeam = isCasterPlayer ? _playerTeamCharacters : _enemyTeamCharacters;
+        List<Character> hostileTeam = isCasterPlayer ? _enemyTeamCharacters : _playerTeamCharacters;
+
+        switch (skill.targetType)
+        {
+            case SkillTargetType.Self:
+                if (caster.IsAlive)
+                {
+                    finalTargets.Add(caster);
+                }
+                break;
+
+            case SkillTargetType.SingleAlly:
+                if (primaryTarget != null && primaryTarget.IsAlive && friendlyTeam.Contains(primaryTarget))
+                {
+                    finalTargets.Add(primaryTarget);
+                }
+                else if (primaryTarget != null)
+                {
+                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleAlly skill {skill.skillNameKey} or target not in friendly team.");
+                }
+                else
+                {
+                     Debug.LogWarning($"[TargetingSystem] Null primary target for SingleAlly skill {skill.skillNameKey}.");
+                }
+                break;
+
+            case SkillTargetType.SingleEnemy:
+                if (primaryTarget != null && primaryTarget.IsAlive && hostileTeam.Contains(primaryTarget))
+                {
+                    finalTargets.Add(primaryTarget);
+                }
+                else if (primaryTarget != null)
+                {
+                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleEnemy skill {skill.skillNameKey} or target not in hostile team.");
+                }
+                else
+                {
+                    Debug.LogWarning($"[TargetingSystem] Null primary target for SingleEnemy skill {skill.skillNameKey}.");
+                }
+                break;
+
+            case SkillTargetType.AllAllies:
+                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                break;
+
+            case SkillTargetType.AllEnemies:
+                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                break;
+
+            case SkillTargetType.AllyRow:
+                // Placeholder: Implement actual row targeting logic.
+                // This might involve using the primaryTarget to identify a row, or specific formation data.
+                Debug.LogWarning($"[TargetingSystem] AllyRow targeting in DetermineFinalTargets is not fully implemented. Defaulting to all living allies.");
+                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                break;
+
+            case SkillTargetType.EnemyRow:
+                // Placeholder: Implement actual row targeting logic.
+                Debug.LogWarning($"[TargetingSystem] EnemyRow targeting in DetermineFinalTargets is not fully implemented. Defaulting to all living enemies.");
+                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                break;
+            
+            case SkillTargetType.None:
+                // Skills that don't target anyone specifically.
+                break;
+
+            default:
+                Debug.LogWarning($"[TargetingSystem] Unhandled SkillTargetType in DetermineFinalTargets: {skill.targetType} for skill {skill.skillNameKey}");
+                break;
+        }
+
+        return finalTargets;
+    }
 }

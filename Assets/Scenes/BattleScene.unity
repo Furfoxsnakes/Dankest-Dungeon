@@ -972,6 +972,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillProcessor: {fileID: 1193273365}
   actionSequenceHandler: {fileID: 1193273364}
+  targetingSystem: {fileID: 1884960630}
   battleUI: {fileID: 1851572543}
 --- !u!114 &1193273364
 MonoBehaviour:
@@ -1238,7 +1239,7 @@ MonoBehaviour:
   battleUICanvas: {fileID: 1929871508}
   actionButtonsPanel: {fileID: 1665758305}
   partyInfoPanel: {fileID: 0}
-  NormalHitDamageNumberPrefab: {fileID: 5614432264834671827, guid: 206a80fc26304be4fb8e68dce30a2f07, type: 3}
+  NormalHitDamageNumberPrefab: {fileID: 6138396993896079539, guid: f94fc366208fbc84db1a9694b8d7a294, type: 3}
   actionButtonPrefab: {fileID: 7535604232355376184, guid: ba439e00e4a6e6042b55b4aa338e8269, type: 3}
   actionButtonsContainer: {fileID: 1665758306}
 --- !u!1 &1884960629

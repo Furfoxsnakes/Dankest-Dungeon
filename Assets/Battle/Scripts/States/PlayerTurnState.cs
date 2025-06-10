@@ -5,7 +5,7 @@ public class PlayerTurnState : BattleState
 {
     private bool skillHasBeenSelected = false; // Renamed for clarity
     private SkillDefinitionSO currentSelectedSkill;
-    private Character activeCharacter;
+    private Hero activeCharacter; // Changed type to Hero
     private BattleUI battleUI;
     private SkillEffectProcessor skillEffectProcessor; // Add this
 
@@ -22,11 +22,23 @@ public class PlayerTurnState : BattleState
         Debug.Log("<color=cyan>Player Turn: Enter</color>");
         skillHasBeenSelected = false;
         currentSelectedSkill = null;
-        activeCharacter = battleManager.GetTurnSystem().GetCurrentActor();
+        
+        Character currentActorFromTurnSystem = battleManager.GetTurnSystem().GetCurrentActor();
 
-        if (activeCharacter == null || !activeCharacter.IsAlive)
+        if (currentActorFromTurnSystem is Hero heroActor)
         {
-            Debug.LogWarning($"PlayerTurnState: Active character {activeCharacter?.GetName()} is null or not alive. Advancing turn.");
+            activeCharacter = heroActor; // Assign if the cast is successful
+        }
+        else
+        {
+            Debug.LogError($"PlayerTurnState: Current actor '{currentActorFromTurnSystem?.GetName()}' is not a Hero. This state is only for Heroes. Advancing turn.");
+            Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
+            return;
+        }
+
+        if (activeCharacter == null || !activeCharacter.IsAlive) // activeCharacter is now Hero type
+        {
+            Debug.LogWarning($"PlayerTurnState: Active hero {activeCharacter?.GetName()} is null or not alive. Advancing turn.");
             Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
             return;
         }
@@ -45,15 +57,15 @@ public class PlayerTurnState : BattleState
         // Check if character died from status effects
         if (!activeCharacter.IsAlive)
         {
-            Debug.LogWarning($"PlayerTurnState: Active character {activeCharacter.GetName()} died from status effects. Advancing turn.");
+            Debug.LogWarning($"PlayerTurnState: Active hero {activeCharacter.GetName()} died from status effects. Advancing turn.");
             Complete(BattleEvent.ActionFullyComplete, null); // Skip turn
             return;
         }
 
         if (battleUI != null)
         {
-            battleUI.ShowActiveCharacterIndicator(activeCharacter);
-            battleUI.ShowSkillButtons(activeCharacter, OnPlayerChoseSkill); // Pass the callback
+            battleUI.ShowActiveCharacterIndicator(activeCharacter); // Can still pass Hero as Character
+            battleUI.ShowSkillButtons(activeCharacter, OnPlayerChoseSkill); // Pass the Hero activeCharacter
         }
         else
         {
@@ -67,6 +79,7 @@ public class PlayerTurnState : BattleState
     {
         if (skillHasBeenSelected) return; // Already chose a skill this turn
 
+        // activeCharacter is already a Hero, no need to cast for GetName()
         Debug.Log($"<color=cyan>PlayerTurnState: Skill '{skill.skillNameKey}' chosen by {activeCharacter.GetName()}.</color>");
         currentSelectedSkill = skill;
         skillHasBeenSelected = true; 

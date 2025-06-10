@@ -131,3 +131,32 @@ public enum ElementType
     Healing // Can also be an element if heals have types/resistances
     // Add more as needed
 }
+
+public enum AnimationTriggerName
+{
+    None, // Represents no trigger or an uninitialized state
+
+    // Standard Character Actions
+    Idle,
+    Attack,
+    Hit,
+    Defend,
+    Death,
+    Move, // If you have a move trigger
+
+    // Skill/Magic Related (can be generic or specific)
+    Cast,          // Generic cast
+    UseItem,       // Generic item use
+
+    // --- Skill Specific Triggers ---
+    // You can add specific skill triggers here if they are common
+    // and you want to manage them via this enum.
+    // Otherwise, SkillDefinitionSO can still hold a string for highly unique skill animations.
+    // Example:
+    // Fireball,
+    // HealPulse,
+
+    // --- UI/Other ---
+    // Show,
+    // Hide
+}

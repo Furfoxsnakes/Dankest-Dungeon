@@ -10,8 +10,18 @@ public class AggressiveAI : AIBehaviorSO
     public struct WeightedSkill
     {
         public SkillDefinitionSO skill;
+        [Range(1, 5)] // Assuming max 5 ranks, adjust as needed
+        public int rankToUse; // 1-based rank level
         [Range(1, 100)]
         public int weight; // Higher weight means more likely to be chosen
+    }
+
+    [System.Serializable]
+    public struct FallbackSkillInfo
+    {
+        public SkillDefinitionSO skill;
+        [Range(1, 5)] // Assuming max 5 ranks, adjust as needed
+        public int rankToUse; // 1-based rank level
     }
 
     [Tooltip("Overall chance to attempt using any skill from the AI Skill Pool (0-100).")]
@@ -19,12 +29,12 @@ public class AggressiveAI : AIBehaviorSO
     [SerializeField] private int attemptSkillChance = 80;
 
     [Header("AI Skill Pool")]
-    [Tooltip("List of primary skills this AI can choose from, with associated weights.")]
+    [Tooltip("List of primary skills this AI can choose from, with associated weights and ranks.")]
     [SerializeField] private List<WeightedSkill> aiSkillPool = new List<WeightedSkill>();
 
     [Header("Fallback Options")]
-    [Tooltip("The specific skill to use if the AI Skill Pool attempt fails or is skipped. Can be null to default to a very basic attack.")]
-    [SerializeField] private SkillDefinitionSO designatedFallbackSkill;
+    [Tooltip("The specific skill and its rank to use if the AI Skill Pool attempt fails or is skipped. Skill can be null to default to a very basic attack.")]
+    [SerializeField] private FallbackSkillInfo designatedFallbackSkill; // Changed type
 
     public override BattleAction DecideAction(Character self, List<Character> allies, List<Character> enemies)
     {
@@ -34,10 +44,12 @@ public class AggressiveAI : AIBehaviorSO
                                                               (ws.skill.targetType == SkillTargetType.Self || 
                                                                ws.skill.targetType == SkillTargetType.SingleAlly || 
                                                                ws.skill.targetType == SkillTargetType.AllAllies));
-        bool canFallbackTargetSelfOrAlly = designatedFallbackSkill != null && 
-                                           (designatedFallbackSkill.targetType == SkillTargetType.Self ||
-                                            designatedFallbackSkill.targetType == SkillTargetType.SingleAlly ||
-                                            designatedFallbackSkill.targetType == SkillTargetType.AllAllies);
+        
+        // Updated to check the skill within FallbackSkillInfo
+        bool canFallbackTargetSelfOrAlly = designatedFallbackSkill.skill != null && 
+                                           (designatedFallbackSkill.skill.targetType == SkillTargetType.Self ||
+                                            designatedFallbackSkill.skill.targetType == SkillTargetType.SingleAlly ||
+                                            designatedFallbackSkill.skill.targetType == SkillTargetType.AllAllies);
 
         if (aliveEnemies.Count == 0 && !canTargetSelfOrAllyFromPool && !canFallbackTargetSelfOrAlly)
         {
@@ -51,42 +63,41 @@ public class AggressiveAI : AIBehaviorSO
             List<WeightedSkill> usableWeightedSkills = new List<WeightedSkill>();
             foreach (var weightedSkillEntry in aiSkillPool)
             {
-                // Ensure the skill from the pool is not the same as the designated fallback,
-                // unless the fallback is the ONLY skill in the pool, to avoid it being overly preferred.
-                // This simple check might need refinement based on desired interaction.
                 if (weightedSkillEntry.skill != null && 
-                    (weightedSkillEntry.skill != designatedFallbackSkill || aiSkillPool.Count == 1) && 
-                    CanUseSkill(self, weightedSkillEntry.skill, allies, aliveEnemies))
+                    (weightedSkillEntry.skill != designatedFallbackSkill.skill || aiSkillPool.Count == 1) && 
+                    CanUseSkill(self, weightedSkillEntry.skill, allies, aliveEnemies) && // Basic check
+                    weightedSkillEntry.rankToUse > 0 && weightedSkillEntry.rankToUse -1 < weightedSkillEntry.skill.ranks.Count) // Rank validity
                 {
+                    // Potentially add mana check here for weightedSkillEntry.skill.ranks[weightedSkillEntry.rankToUse - 1].manaCost
                     usableWeightedSkills.Add(weightedSkillEntry);
                 }
             }
 
             if (usableWeightedSkills.Any())
             {
-                SkillDefinitionSO chosenSkill = SelectSkillFromWeightedPool(usableWeightedSkills);
+                WeightedSkill chosenWeightedSkill = SelectSkillFromWeightedPool(usableWeightedSkills); // Now returns WeightedSkill
                 
-                if (chosenSkill != null)
+                if (chosenWeightedSkill.skill != null)
                 {
-                    Character primaryTarget = DetermineTargetForSkill(self, chosenSkill, allies, aliveEnemies);
-                    int skillRank = self.GetSkillRank(chosenSkill);
-                    if (skillRank == 0 && chosenSkill.ranks.Any())
-                    {
-                        skillRank = 1; 
-                    }
+                    SkillDefinitionSO chosenSkillDef = chosenWeightedSkill.skill;
+                    int chosenRank = chosenWeightedSkill.rankToUse;
 
-                    if (IsTargetRequired(chosenSkill.targetType) && primaryTarget == null)
+                    Character primaryTarget = DetermineTargetForSkill(self, chosenSkillDef, allies, aliveEnemies);
+
+                    if (IsTargetRequired(chosenSkillDef.targetType) && primaryTarget == null)
                     {
-                        Debug.LogWarning($"[AI] {self.GetName()}: Chosen skill from pool '{chosenSkill.skillNameKey}' requires a target, but none found. Proceeding to designated fallback.");
+                        Debug.LogWarning($"[AI] {self.GetName()}: Chosen skill from pool '{chosenSkillDef.skillNameKey}' Rank {chosenRank} requires a target, but none found. Proceeding to designated fallback.");
                     }
-                    else if (skillRank > 0)
+                    // Rank validity already checked when adding to usableWeightedSkills
+                    else if (chosenRank > 0 && chosenRank -1 < chosenSkillDef.ranks.Count) 
                     {
-                        Debug.Log($"[AI] {self.GetName()} decided to use SKILL FROM POOL: {chosenSkill.skillNameKey} (Rank {skillRank}) on {primaryTarget?.GetName() ?? "area/self"}");
-                        return new BattleAction(self, primaryTarget, chosenSkill); // Removed skillRank
+                        SkillRankData chosenSkillRankData = chosenSkillDef.ranks[chosenRank - 1];
+                        Debug.Log($"[AI] {self.GetName()} decided to use SKILL FROM POOL: {chosenSkillDef.skillNameKey} (Rank {chosenRank}) on {primaryTarget?.GetName() ?? "area/self"}");
+                        return new BattleAction(self, primaryTarget, chosenSkillDef, chosenSkillRankData);
                     }
-                    else
+                    else // Should ideally not be reached if usableWeightedSkills logic is correct
                     {
-                        Debug.LogWarning($"[AI] {self.GetName()}: Chosen skill from pool '{chosenSkill.skillNameKey}' has rank 0 and no default. Proceeding to designated fallback.");
+                        Debug.LogError($"[AI] {self.GetName()}: Skill '{chosenSkillDef.skillNameKey}' rank {chosenRank} is invalid. Fallback.");
                     }
                 }
             }
@@ -101,34 +112,35 @@ public class AggressiveAI : AIBehaviorSO
         }
 
         // 2. Attempt to use the Designated Fallback Skill
-        if (designatedFallbackSkill != null)
+        if (designatedFallbackSkill.skill != null) // Check if a fallback skill is assigned
         {
-            if (CanUseSkill(self, designatedFallbackSkill, allies, aliveEnemies))
-            {
-                Character primaryTarget = DetermineTargetForSkill(self, designatedFallbackSkill, allies, aliveEnemies);
-                int skillRank = self.GetSkillRank(designatedFallbackSkill);
-                if (skillRank == 0 && designatedFallbackSkill.ranks.Any())
-                {
-                    skillRank = 1;
-                }
+            SkillDefinitionSO fallbackSkillDef = designatedFallbackSkill.skill;
+            int fallbackRank = designatedFallbackSkill.rankToUse;
 
-                if (IsTargetRequired(designatedFallbackSkill.targetType) && primaryTarget == null)
+            // Validate the rank for the fallback skill
+            if (fallbackRank <= 0 || fallbackRank - 1 >= fallbackSkillDef.ranks.Count)
+            {
+                Debug.LogError($"[AI] {self.GetName()}: Designated fallback skill '{fallbackSkillDef.skillNameKey}' has an invalid rank configured ({fallbackRank}). Max ranks: {fallbackSkillDef.ranks.Count}. Proceeding to generic attack.");
+            }
+            else if (CanUseSkill(self, fallbackSkillDef, allies, aliveEnemies)) // Basic check
+            {
+                // Potentially add mana check here for fallbackSkillDef.ranks[fallbackRank - 1].manaCost
+                Character primaryTarget = DetermineTargetForSkill(self, fallbackSkillDef, allies, aliveEnemies);
+
+                if (IsTargetRequired(fallbackSkillDef.targetType) && primaryTarget == null)
                 {
-                    Debug.LogWarning($"[AI] {self.GetName()}: Designated fallback skill '{designatedFallbackSkill.skillNameKey}' requires a target, but none found. Proceeding to generic attack fallback.");
-                }
-                else if (skillRank > 0)
-                {
-                    Debug.Log($"[AI] {self.GetName()} decided to use DESIGNATED FALLBACK SKILL: {designatedFallbackSkill.skillNameKey} (Rank {skillRank}) on {primaryTarget?.GetName() ?? "area/self"}");
-                    return new BattleAction(self, primaryTarget, designatedFallbackSkill); // Removed skillRank
+                    Debug.LogWarning($"[AI] {self.GetName()}: Designated fallback skill '{fallbackSkillDef.skillNameKey}' Rank {fallbackRank} requires a target, but none found. Proceeding to generic attack fallback.");
                 }
                 else
                 {
-                     Debug.LogWarning($"[AI] {self.GetName()}: Designated fallback skill '{designatedFallbackSkill.skillNameKey}' has rank 0 and no default. Proceeding to generic attack fallback.");
+                    SkillRankData fallbackSkillRankData = fallbackSkillDef.ranks[fallbackRank - 1];
+                    Debug.Log($"[AI] {self.GetName()} decided to use DESIGNATED FALLBACK SKILL: {fallbackSkillDef.skillNameKey} (Rank {fallbackRank}) on {primaryTarget?.GetName() ?? "area/self"}");
+                    return new BattleAction(self, primaryTarget, fallbackSkillDef, fallbackSkillRankData);
                 }
             }
             else
             {
-                Debug.LogWarning($"[AI] {self.GetName()}: Designated fallback skill '{designatedFallbackSkill.skillNameKey}' cannot be used. Proceeding to generic attack fallback.");
+                Debug.LogWarning($"[AI] {self.GetName()}: Designated fallback skill '{fallbackSkillDef.skillNameKey}' Rank {fallbackRank} cannot be used (e.g., no valid targets). Proceeding to generic attack fallback.");
             }
         }
         else
@@ -140,14 +152,16 @@ public class AggressiveAI : AIBehaviorSO
         return GetGenericFallbackAttack(self, aliveEnemies);
     }
 
-    private SkillDefinitionSO SelectSkillFromWeightedPool(List<WeightedSkill> usableSkills)
+    // Modified to return WeightedSkill to get rank info too
+    private WeightedSkill SelectSkillFromWeightedPool(List<WeightedSkill> usableSkills)
     {
-        if (usableSkills == null || !usableSkills.Any()) return null;
+        if (usableSkills == null || !usableSkills.Any()) return default; // Return default WeightedSkill
 
         int totalWeight = usableSkills.Sum(ws => ws.weight);
         if (totalWeight <= 0) 
         {
-            return usableSkills[Random.Range(0, usableSkills.Count)].skill;
+            // Fallback to random if weights are zero or negative
+            return usableSkills[Random.Range(0, usableSkills.Count)];
         }
 
         int randomNumber = Random.Range(0, totalWeight);
@@ -158,12 +172,12 @@ public class AggressiveAI : AIBehaviorSO
             cumulativeWeight += weightedSkill.weight;
             if (randomNumber < cumulativeWeight)
             {
-                return weightedSkill.skill;
+                return weightedSkill;
             }
         }
         
-        Debug.LogError("[AI] SelectSkillFromWeightedPool: Failed to select a skill, returning last in usable list as fallback.");
-        return usableSkills.LastOrDefault().skill; 
+        Debug.LogError("[AI] SelectSkillFromWeightedPool: Failed to select a skill based on weights, returning last in usable list as fallback.");
+        return usableSkills.LastOrDefault(); 
     }
     
     private BattleAction GetGenericFallbackAttack(Character self, List<Character> aliveEnemies)
@@ -176,7 +190,9 @@ public class AggressiveAI : AIBehaviorSO
         Character target = FindLowestHealthTarget(aliveEnemies); 
          if (target == null) 
         {
-            Debug.LogError($"[AI] {self.GetName()}: Generic fallback attack, FindLowestHealthTarget returned null despite alive enemies.");
+            // This case should ideally be prevented by the aliveEnemies check,
+            // but FindLowestHealthTarget might return null if all alive enemies are somehow invalid for targeting.
+            Debug.LogError($"[AI] {self.GetName()}: Generic fallback attack, FindLowestHealthTarget returned null despite alive enemies. This might indicate an issue in target validation.");
             return null;
         }
         Debug.Log($"[AI] {self.GetName()} decided to use basic GENERIC ATTACK on {target.GetName()}");

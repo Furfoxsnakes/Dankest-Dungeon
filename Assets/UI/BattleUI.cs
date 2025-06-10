@@ -184,8 +184,8 @@ public class BattleUI : MonoBehaviour
         }
     }
 
-    // New method to show skill buttons
-    public void ShowSkillButtons(Character character, Action<SkillDefinitionSO> onSkillSelectedCallback)
+    // New method to show skill buttons, now specifically for Hero
+    public void ShowSkillButtons(Hero heroCharacter, Action<SkillDefinitionSO> onSkillSelectedCallback)
     {
         if (actionButtonsPanel == null || actionButtonPrefab == null || actionButtonsContainer == null)
         {
@@ -195,17 +195,18 @@ public class BattleUI : MonoBehaviour
 
         ClearActionButtons(); // Clear previous buttons
 
-        if (character == null)
+        if (heroCharacter == null)
         {
-            Debug.LogWarning("ShowSkillButtons called with a null character.");
+            Debug.LogWarning("ShowSkillButtons called with a null heroCharacter.");
             actionButtonsPanel.SetActive(false);
             return;
         }
 
-        var learnedSkills = character.LearnedSkills; // From Character.cs
+        // No need to cast or check type anymore, we know it's a Hero
+        var learnedSkills = heroCharacter.LearnedSkills; // Access LearnedSkills directly
         if (learnedSkills.Count == 0)
         {
-            Debug.Log($"{character.GetName()} has no learned skills.");
+            Debug.Log($"{heroCharacter.GetName()} has no learned skills.");
             actionButtonsPanel.SetActive(false);
             // Optionally, show a "Pass" or "Basic Attack" button here
             return;
@@ -245,6 +246,7 @@ public class BattleUI : MonoBehaviour
         {
              actionButtonsPanel.SetActive(false); // Hide panel if no valid skills were added
         }
+        // The 'else' block for non-Hero characters is no longer needed.
     }
 
     public void HideActionButtons()

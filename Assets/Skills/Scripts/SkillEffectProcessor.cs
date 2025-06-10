@@ -1,14 +1,19 @@
 using UnityEngine;
 using DankestDungeon.Skills; // Assuming StatType and other enums are here
+using DankestDungeon.StatusEffects; // For StatusEffectSO, ActiveStatusEffect, StatusEffectTickType
+using DankestDungeon.Characters;   // For Character, StatType, TemporaryModifier
+
 // It's good practice to include using directives for types used in public method signatures
 // if they are in different namespaces, though BattleUI might be in the global namespace or a common one.
 // using YourNamespace.UI; // If BattleUI is in a specific namespace
 
 public class SkillEffectProcessor : MonoBehaviour
 {
+    private BattleUI _battleUI;
+
     [Header("Global Settings")]
     [SerializeField] private float baseCritMultiplier = 1.5f; // Make sure this is used by your CalculateDamageValue
-    [SerializeField] private int minimumDamage = 1; // Make sure this is used
+    [SerializeField] private int minimumDamage = 1; // Ensure this is defined
 
     // This is your existing method that returns DamageEffectResult - KEEP THIS
     public DamageEffectResult CalculateDamageEffect(Character caster, Character target, SkillEffectData effectData, SkillRankData rankData)
@@ -156,10 +161,10 @@ public class SkillEffectProcessor : MonoBehaviour
 
         target.TakeDamage(damageResult.finalDamage); 
 
-        if (battleUI != null)
+        if (_battleUI != null)
         {
             BattleUI.DamageNumberType type = damageResult.isCrit ? BattleUI.DamageNumberType.CriticalDamage : BattleUI.DamageNumberType.NormalDamage;
-            battleUI.ShowDamageNumber(target, damageResult.finalDamage, type);
+            _battleUI.ShowDamageNumber(target, damageResult.finalDamage, type);
         }
         else
         {
@@ -177,16 +182,111 @@ public class SkillEffectProcessor : MonoBehaviour
 
         target.HealDamage(healResult.finalHeal);
 
-        if (battleUI != null)
+        if (_battleUI != null)
         {
             BattleUI.DamageNumberType type = BattleUI.DamageNumberType.Heal;
             // If you add a specific CriticalHeal type:
             // BattleUI.DamageNumberType type = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal;
-            battleUI.ShowDamageNumber(target, healResult.finalHeal, type);
+            _battleUI.ShowDamageNumber(target, healResult.finalHeal, type);
         }
         else
         {
             Debug.LogError("[SkillEffectProcessor] BattleUI reference is null. Cannot display healing number.");
         }
+    }
+
+    public void ProcessStatusEffectTick(Character target, ActiveStatusEffect statusEffect)
+    {
+        if (target == null || !target.IsAlive || statusEffect == null || statusEffect.Definition == null)
+        {
+            Debug.LogWarning($"[SkillEffectProcessor] ProcessStatusEffectTick: Invalid arguments. Target: {target?.GetName()}, Status: {statusEffect?.Definition?.statusNameKey}");
+            return;
+        }
+
+        StatusEffectSO definition = statusEffect.Definition;
+        float tickPotency = statusEffect.Potency; // This is the calculated per-tick magnitude
+        ElementType elementType = statusEffect.EffectElementType; // Element of the status effect's tick.
+
+        switch (definition.tickEffectType)
+        {
+            case StatusEffectTickType.DamageOverTime:
+                int damageToApply = Mathf.Max(minimumDamage, Mathf.RoundToInt(tickPotency));
+                
+                // Note: Defense/Resistance is typically applied when the DoT potency is initially calculated
+                // or it's assumed the tickPotency already accounts for it if it's 'true' damage.
+                // If DoT ticks should be re-evaluated against current defenses each tick, that logic would go here.
+                // For now, we assume tickPotency is the final damage for the tick.
+                
+                target.TakeDamage(damageToApply);
+                Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' (Tick) dealt {damageToApply} {elementType} damage to {target.GetName()}. Potency: {tickPotency}");
+
+                if (_battleUI != null)
+                {
+                    // Consider a specific BattleUI.DamageNumberType for status effect damage if desired
+                    _battleUI.ShowDamageNumber(target, damageToApply, BattleUI.DamageNumberType.NormalDamage); // Or a new type e.g., StatusEffectDamage
+                }
+                break;
+
+            case StatusEffectTickType.HealOverTime:
+                int healToApply = Mathf.Max(0, Mathf.RoundToInt(tickPotency)); // Healing shouldn't be negative.
+                target.HealDamage(healToApply);
+                Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' (Tick) healed {healToApply} HP for {target.GetName()}. Potency: {tickPotency}");
+
+                if (_battleUI != null)
+                {
+                    // Consider a specific BattleUI.DamageNumberType for status effect healing
+                    _battleUI.ShowDamageNumber(target, healToApply, BattleUI.DamageNumberType.Heal); // Or a new type e.g., StatusEffectHeal
+                }
+                break;
+
+            case StatusEffectTickType.StatModification:
+                // This assumes the "tick" for a stat modification means applying a temporary modifier
+                // whose magnitude is defined by statusEffect.Potency (calculated from the skill)
+                // or fallback to definition.statModValue. The duration of this tick-applied modifier
+                // should be short (e.g., 1 turn) as it's part of a "tick".
+                // If the stat mod is meant to be persistent for the status duration, that should be handled
+                // on application/removal of the status effect itself, not per-tick here.
+
+                StatType statToMod = definition.statToModify;
+                float modValue = tickPotency; // Primary: use potency from skill application
+
+                // Fallback if Potency was 0 and statModValue is set (though Potency should ideally be calculated correctly)
+                if (Mathf.Approximately(modValue, 0) && !Mathf.Approximately(definition.statModValue, 0))
+                {
+                    modValue = definition.statModValue;
+                }
+
+                if (statToMod != StatType.None && !Mathf.Approximately(modValue, 0))
+                {
+                    TemporaryModifier tickModifier = new TemporaryModifier
+                    {
+                        statType = statToMod,
+                        value = modValue,
+                        duration = 1, // Lasts until the next tick cycle, effectively. CharacterBuffs will manage it.
+                        isBuff = definition.isBuff, // Or determine from modValue > 0
+                        sourceName = $"{definition.statusNameKey} (Tick)"
+                    };
+                    target.AddTemporaryModifier(tickModifier);
+                    Debug.Log($"[SkillEffectProcessor] Status '{definition.statusNameKey}' (Tick) applied temporary modifier to {statToMod} by {modValue} for 1 duration to {target.GetName()}.");
+                }
+                else
+                {
+                    // Debug.Log($"[SkillEffectProcessor] Status '{definition.statusNameKey}' (Tick) StatModification: No valid stat/value to modify. Stat: {statToMod}, Value: {modValue}");
+                }
+                break;
+
+            case StatusEffectTickType.None:
+            default:
+                // No direct effect this tick. Duration will still be managed by Character.cs.
+                // Debug.Log($"[SkillEffectProcessor] Status '{definition.statusNameKey}' on {target.GetName()} ticked with type '{definition.tickEffectType}'. No direct effect processed by tick.");
+                break;
+        }
+    }
+
+    public void Initialize(BattleUI battleUI)
+    {
+        _battleUI = battleUI;
+        // Add any other initialization logic here
+        Debug.Log("[SkillEffectProcessor] Initialized with BattleUI.");
     }
 }

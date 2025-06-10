@@ -152,39 +152,52 @@ public class BattleManager : MonoBehaviour
                         AdvanceTurn();
                         break;
                     }
-                    // int skillRank = currentActor.GetSkillRank(selectedSkill); // skillRank is not passed to BattleAction or TargetSelectionState constructor
-                    // Skill rank will be used by SkillEffectProcessor when effects are calculated.
 
-                    // if (skillRank == 0) { // This check is still valid
-                    //     Debug.LogError($"[BATTLE MANAGER] Actor {currentActor.GetName()} does not know skill {selectedSkill.skillNameKey} or rank is 0. UI should prevent this.");
-                    //     stateMachine.ChangeState(new PlayerTurnState(this)); 
-                    //     break;
-                    // }
-                    
-                    Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected skill: {selectedSkill.skillNameKey} by {currentActor.GetName()}.</color>");
-
-                    bool needsTargeting = selectedSkill.targetType == SkillTargetType.SingleEnemy ||
-                                          selectedSkill.targetType == SkillTargetType.SingleAlly ||
-                                          selectedSkill.targetType == SkillTargetType.EnemyRow || 
-                                          selectedSkill.targetType == SkillTargetType.AllyRow;   
-
-
-                    if (needsTargeting)
+                    if (currentActor is Hero heroActor) // Check if the actor is a Hero
                     {
-                        // Pass currentActor and selectedSkill directly to TargetSelectionState
-                        stateMachine.ChangeState(new TargetSelectionState(this, currentActor, selectedSkill));
-                    }
-                    else 
-                    {
-                        // For no-target skills, target in BattleAction can be null or self.
-                        // ActionSequenceHandler will resolve targets like AllEnemies/AllAllies.
-                        Character targetForNoTargetSkill = null;
-                        if (selectedSkill.targetType == SkillTargetType.Self)
+                        SkillRankData skillRankData = heroActor.GetSkillRankData(selectedSkill);
+
+                        if (skillRankData == null)
                         {
-                            targetForNoTargetSkill = currentActor;
+                            Debug.LogError($"[BATTLE MANAGER] Hero {heroActor.GetName()} does not have skill {selectedSkill.skillNameKey} learned or rank data is missing. Returning to PlayerTurnState.");
+                            stateMachine.ChangeState(new PlayerTurnState(this));
+                            break;
                         }
-                        BattleAction skillAction = new BattleAction(currentActor, targetForNoTargetSkill, selectedSkill); 
-                        stateMachine.ChangeState(new ActionExecutionState(this, skillAction));
+                        
+                        Debug.Log($"<color=orange>[BATTLE MANAGER] Player selected skill: {selectedSkill.skillNameKey} (Rank: {skillRankData.rankLevel}) by {heroActor.GetName()}.</color>");
+
+                        bool needsTargeting = selectedSkill.targetType == SkillTargetType.SingleEnemy ||
+                                              selectedSkill.targetType == SkillTargetType.SingleAlly ||
+                                              selectedSkill.targetType == SkillTargetType.EnemyRow || 
+                                              selectedSkill.targetType == SkillTargetType.AllyRow;   
+
+
+                        if (needsTargeting)
+                        {
+                            // Pass currentActor, selectedSkill, and skillRankData to TargetSelectionState
+                            stateMachine.ChangeState(new TargetSelectionState(this, heroActor, selectedSkill, skillRankData));
+                        }
+                        else 
+                        {
+                            // For no-target skills (Self, AllEnemies, AllAllies, All)
+                            // PrimaryTarget can be the actor for Self, or null for broad AoEs.
+                            // ActionSequenceHandler will use TargetingSystem to populate ResolvedTargets if not already set.
+                            Character primaryTargetForNoTargetSkill = null;
+                            if (selectedSkill.targetType == SkillTargetType.Self)
+                            {
+                                primaryTargetForNoTargetSkill = heroActor;
+                            }
+                            // Create BattleAction with SkillDefinitionSO and SkillRankData
+                            BattleAction skillAction = new BattleAction(heroActor, primaryTargetForNoTargetSkill, selectedSkill, skillRankData); 
+                            // ResolvedTargets will be populated by ActionSequenceHandler if needed.
+                            stateMachine.ChangeState(new ActionExecutionState(this, skillAction));
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError($"[BATTLE MANAGER] PlayerSkillSelected: Current actor {currentActor.GetName()} is not a Hero. Skill selection logic is designed for Heroes. Returning to PlayerTurnState.");
+                        stateMachine.ChangeState(new PlayerTurnState(this)); 
+                        break;
                     }
                 }
                 else
@@ -197,7 +210,8 @@ public class BattleManager : MonoBehaviour
             case BattleEvent.TargetSelected: 
                 if (data is BattleAction actionWithTarget)
                 {
-                    Debug.Log($"<color=orange>[BATTLE MANAGER] Target selected. Action: {actionWithTarget.ActionType} by {actionWithTarget.Actor.GetName()} on {actionWithTarget.Target?.GetName()}. Skill: {actionWithTarget.UsedSkill?.skillNameKey}. Transitioning to ActionExecutionState.</color>");
+                    // Log with PrimaryTarget. ResolvedTargets might be populated by TargetSelectionState or later by ASH.
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Target selected. Action: {actionWithTarget.ActionType} by {actionWithTarget.Actor.GetName()} on {actionWithTarget.PrimaryTarget?.GetName() ?? "N/A"}. Skill: {actionWithTarget.UsedSkill?.skillNameKey}. Transitioning to ActionExecutionState.</color>");
                     stateMachine.ChangeState(new ActionExecutionState(this, actionWithTarget));
                 }
                 else
@@ -215,7 +229,8 @@ public class BattleManager : MonoBehaviour
             case BattleEvent.EnemyActionComplete: 
                 if (data is BattleAction enemyAction)
                 {
-                    Debug.Log($"<color=orange>[BATTLE MANAGER] Enemy action decided: {enemyAction.ActionType} by {enemyAction.Actor.GetName()} on {enemyAction.Target?.GetName()}. Transitioning to ActionExecutionState.</color>");
+                    // Log with PrimaryTarget. ResolvedTargets should be populated by Enemy AI if it's an AoE.
+                    Debug.Log($"<color=orange>[BATTLE MANAGER] Enemy action decided: {enemyAction.ActionType} by {enemyAction.Actor.GetName()} on {enemyAction.PrimaryTarget?.GetName() ?? "N/A / Area"}. Skill: {enemyAction.UsedSkill?.skillNameKey}. Transitioning to ActionExecutionState.</color>");
                     stateMachine.ChangeState(new ActionExecutionState(this, enemyAction));
                 }
                 else

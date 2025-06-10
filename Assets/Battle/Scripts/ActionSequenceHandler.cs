@@ -2,55 +2,131 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using DankestDungeon.Skills;
-using DankestDungeon.Characters; // For Character
-using System.Linq; // For FirstOrDefault
+using DankestDungeon.Skills; // Assuming this namespace for Skill, SkillEffectData etc.
 
 public class ActionSequenceHandler : MonoBehaviour
 {
-	private CombatSystem combatSystem; // To access character lists or other CombatSystem methods if needed
-	private SkillEffectProcessor skillProcessor;
-	private TargetingSystem targetingSystem;
+    private CombatSystem combatSystem; // To access character lists or other CombatSystem methods if needed
+    private SkillEffectProcessor skillProcessor;
+    private TargetingSystem targetingSystem;
+    private int _activeSequences = 0; // Ensure this is declared
 
-	public void Initialize(CombatSystem cs, SkillEffectProcessor sp, TargetingSystem ts)
-	{
-		combatSystem = cs;
-		skillProcessor = sp;
-		targetingSystem = ts;
+    public void Initialize(CombatSystem cs, SkillEffectProcessor sp, TargetingSystem ts)
+    {
+        combatSystem = cs;
+        skillProcessor = sp;
+        targetingSystem = ts;
+    }
+
+    public void ExecuteAction(BattleAction action, Action onComplete)
+    {
+        // Use PrimaryTarget for logging the initial target focus
+        Debug.Log($"[COMBAT] Executing {action.ActionType}: {action.Actor.GetName()} -> {action.PrimaryTarget?.GetName() ?? "self/area"}");
+
+        switch (action.ActionType)
+        {
+            case ActionType.Attack:
+                // Pass PrimaryTarget for single-target actions
+                StartCoroutine(ExecuteAttackSequence(action.Actor, action.PrimaryTarget, onComplete));
+                break;
+
+            case ActionType.Defend:
+                StartCoroutine(ExecuteDefendSequence(action.Actor, onComplete));
+                break;
+
+            case ActionType.Magic:
+                // Pass PrimaryTarget for single-target actions
+                StartCoroutine(ExecuteMagicSequence(action.Actor, action.PrimaryTarget, onComplete));
+                break;
+
+            case ActionType.Item:
+                // Pass PrimaryTarget for single-target actions
+                StartCoroutine(ExecuteItemSequence(action.Actor, action.PrimaryTarget, onComplete));
+                break;
+
+            case ActionType.Skill:
+                if (action.UsedSkill != null && action.SkillRank != null)
+                {
+                    SkillDefinitionSO skillDef = action.UsedSkill;
+                    Character actorChar = action.Actor;
+                    List<Character> skillTargetsToProcess;
+                    Character animationFocusTarget = action.PrimaryTarget; // Default animation focus to the primary selected target
+
+                    // Prioritize ResolvedTargets if available
+                    if (action.ResolvedTargets != null && action.ResolvedTargets.Count > 0)
+                    {
+                        skillTargetsToProcess = action.ResolvedTargets;
+                        Debug.Log($"[ActionSequenceHandler] Using pre-resolved targets for skill '{skillDef.skillNameKey}'. Count: {skillTargetsToProcess.Count}");
+                    }
+                    else
+                    {
+                        // If ResolvedTargets is not set, determine them now using the PrimaryTarget as a hint
+                        Debug.LogWarning($"[ActionSequenceHandler] action.ResolvedTargets was null or empty for skill '{skillDef.skillNameKey}'. Resolving now using PrimaryTarget: {action.PrimaryTarget?.GetName() ?? "null"}.");
+                        skillTargetsToProcess = targetingSystem.DetermineFinalTargets(actorChar, action.PrimaryTarget, skillDef);
+                        action.ResolvedTargets = skillTargetsToProcess; // Store the resolved targets back into the action
+                    }
+
+                    // Determine the target for animation focus
+                    if (animationFocusTarget == null && skillTargetsToProcess != null && skillTargetsToProcess.Count > 0)
+                    {
+                        animationFocusTarget = skillTargetsToProcess[0]; // Fallback to the first resolved target if no primary target
+                        Debug.Log($"[ActionSequenceHandler] PrimaryTarget for animation was null, using first resolved target: {animationFocusTarget.GetName()} for skill '{skillDef.skillNameKey}'.");
+                    }
+                    
+                    if (skillDef.targetType == SkillTargetType.Self)
+                    {
+                        animationFocusTarget = actorChar; // Self-targeted skills always animate on the actor
+                        // Ensure the actor is in the list of targets for self-targeted skills
+                        if (skillTargetsToProcess == null || !skillTargetsToProcess.Contains(actorChar))
+                        {
+                            skillTargetsToProcess = new List<Character> { actorChar };
+                            action.ResolvedTargets = skillTargetsToProcess;
+                             Debug.Log($"[ActionSequenceHandler] Skill '{skillDef.skillNameKey}' is self-targeted. Ensured actor is the target.");
+                        }
+                    }
+                    
+                    // Ensure skillTargetsToProcess is not null before passing
+                    if (skillTargetsToProcess == null)
+                    {
+                        skillTargetsToProcess = new List<Character>();
+                        Debug.LogWarning($"[ActionSequenceHandler] skillTargetsToProcess was null for skill '{skillDef.skillNameKey}' after all checks. Defaulting to empty list.");
+                    }
+
+                    StartCoroutine(ExecuteSkillSequence(action, skillDef, actorChar, skillTargetsToProcess, animationFocusTarget, onComplete));
+                }
+                else
+                {
+                    Debug.LogError($"[ActionSequenceHandler] ExecuteAction: SkillDefinitionSO or SkillRankData is null for SKILL action type. Actor: {action.Actor.GetName()}");
+                    onComplete?.Invoke();
+                }
+                break;
+
+            default:
+                Debug.LogWarning($"Unknown action type: {action.ActionType}");
+                onComplete?.Invoke();
+                break;
+        }
 	}
 
-	public void ExecuteAction(BattleAction action, Action onComplete)
-	{
-		Debug.Log($"[COMBAT] Executing {action.ActionType}: {action.Actor.GetName()} -> {action.Target?.GetName() ?? "self"}");
+    public void ProcessAction(BattleAction action, System.Action onComplete)
+    {
+        // Your implementation for processing the action
+        // MODIFIED: Call ExecuteAction instead of invoking onComplete directly
+        if (action != null)
+        {
+            ExecuteAction(action, onComplete);
+        }
+        else
+        {
+            Debug.LogError("[ActionSequenceHandler] ProcessAction called with a null action.");
+            onComplete?.Invoke(); // Still call onComplete if action is null to prevent hanging
+        }
+    }
 
-		switch (action.ActionType)
-		{
-			case ActionType.Attack:
-				StartCoroutine(ExecuteAttackSequence(action.Actor, action.Target, onComplete));
-				break;
-
-			case ActionType.Defend:
-				StartCoroutine(ExecuteDefendSequence(action.Actor, onComplete));
-				break;
-
-			case ActionType.Magic:
-				StartCoroutine(ExecuteMagicSequence(action.Actor, action.Target, onComplete));
-				break;
-
-			case ActionType.Item:
-				StartCoroutine(ExecuteItemSequence(action.Actor, action.Target, onComplete));
-				break;
-
-			case ActionType.Skill: // Add this new case
-				StartCoroutine(ExecuteSkillSequence(action, onComplete));
-				break;
-
-			default:
-				Debug.LogWarning($"Unknown action type: {action.ActionType}");
-				onComplete?.Invoke();
-				break;
-		}
-	}
+    public bool IsSequenceRunning()
+    {
+        return _activeSequences > 0;
+    }
 
 	private IEnumerator ExecuteAttackSequence(Character attacker, Character target, Action onComplete)
 	{
@@ -217,214 +293,240 @@ public class ActionSequenceHandler : MonoBehaviour
 		// }
 		Debug.Log($"[COMBAT] Applying item effects for {user.GetName()}.");
 
-
 		Debug.Log($"[COMBAT] Item sequence complete for {user.GetName()}.");
 		onComplete?.Invoke();
 	}
 
-	private IEnumerator ExecuteSkillSequence(BattleAction action, Action onComplete)
-	{
-		SkillDefinitionSO skill = action.UsedSkill;
-		Character actor = action.Actor;
-		int rankIndex = action.SkillRank - 1;
-
-		if (rankIndex < 0 || rankIndex >= skill.ranks.Count)
-		{
-			Debug.LogError($"Invalid skill rank {action.SkillRank} for {skill.skillNameKey}. Max ranks: {skill.ranks.Count}");
-			onComplete?.Invoke();
-			yield break;
-		}
-
-		SkillRankData currentRankData = skill.ranks[rankIndex];
-		Character primaryTargetForAnimation = action.Target;
-
-		// MODIFIED CALL HERE: Pass the 'skill' (SkillDefinitionSO) instead of 'skill.targetType'
-		// This will call your newer, context-aware DetermineFinalTargets method.
-		List<Character> finalEffectTargets = targetingSystem.DetermineFinalTargets(actor, action.Target, skill);
-
-		if (finalEffectTargets.Count == 0 && skill.targetType != SkillTargetType.Self && skill.targetType != SkillTargetType.None)
-		{
-			Debug.Log($"Skill {skill.skillNameKey} by {actor.GetName()} has no valid targets to affect.");
-			// It's possible the animation still plays if it's non-targeted,
-			// but effects won't apply. Consider if onComplete should be called here or after animation.
-			// For now, let's assume if no effect targets, the core of the skill fails.
-			onComplete?.Invoke();
-			yield break;
-		}
-
-		Debug.Log($"<color=green>[COMBAT] Executing Skill: {skill.skillNameKey} (Rank {action.SkillRank}) by {actor.GetName()} on {finalEffectTargets.Count} target(s). Primary anim target: {primaryTargetForAnimation?.GetName() ?? "None"}</color>");
-
-		// Step 1: Play caster's skill animation
-		if (skill.animationType != AnimationType.None)
-		{
-			actor.PlayAnimation(skill.animationType, primaryTargetForAnimation);
-			yield return new WaitUntil(() => actor.GetCurrentState() is IdleState);
-			Debug.Log($"[COMBAT] {actor.GetName()} completed {skill.animationType} animation for skill {skill.skillNameKey}");
-		}
-
-		// Step 2: Process each effect for each target
-		foreach (SkillEffectData effectData in currentRankData.effects)
-		{
-			foreach (Character effectTarget in finalEffectTargets)
-			{
-				if (effectTarget != null && effectTarget.IsAlive)
-				{
-					if (UnityEngine.Random.value > effectData.chance)
-					{
-						Debug.Log($"Effect {effectData.effectType} on {effectTarget.GetName()} failed chance roll ({effectData.chance * 100}%).");
-						continue;
-					}
-					yield return StartCoroutine(ApplySkillEffectToTargetWithSequence(actor, effectTarget, effectData, currentRankData, skill));
-				}
-			}
-		}
-
-		Debug.Log($"[COMBAT] Skill sequence complete for {skill.skillNameKey}");
-		onComplete?.Invoke();
-	}
-
-	// Renamed and refactored from ApplySkillEffectToTarget
-	private IEnumerator ApplySkillEffectToTargetWithSequence(Character actor, Character targetCharacter, SkillEffectData effectData, SkillRankData skillRankData, SkillDefinitionSO skill)
+    // Coroutine for the main skill sequence
+    // The 'targets' parameter here is the list of all characters the skill's effects will apply to.
+    // The 'primaryTargetForAnim' is who the actor's animation should visually focus on.
+    private IEnumerator ExecuteSkillSequence(BattleAction action, SkillDefinitionSO skillData, Character actor, List<Character> resolvedTargets, Character primaryTargetForAnim, Action onComplete)
     {
-        if (targetCharacter == null)
+        _activeSequences++;
+        // Log with resolvedTargets.Count and the primaryTargetForAnim
+        Debug.Log($"<color=green>[COMBAT] Executing Skill: {skillData.skillNameKey} (Rank {action.SkillRank}) by {actor.GetName()} on {resolvedTargets.Count} target(s). Primary anim target: {(primaryTargetForAnim != null ? primaryTargetForAnim.GetName() : "None")}</color>");
+
+        // 1. Actor Animation - uses primaryTargetForAnim for visual focus
+        if (skillData.animationTrigger != AnimationTriggerName.None)
         {
-            Debug.LogError($"[COMBAT] Target character is null for effect {effectData.effectType} from skill {skill.skillNameKey}.");
-            yield break;
+            string triggerName = skillData.animationTrigger.ToString();
+            Debug.Log($"[ASH] Preparing actor animation: {triggerName} for {actor.GetName()}, focusing on {primaryTargetForAnim?.GetName() ?? "area"}");
+            bool actorAnimationFinished = false;
+            Action actorAnimCallback = () => {
+                Debug.Log($"[ASH] EXTERNAL CALLBACK: Actor ({actor.GetName()}) animation '{triggerName}' finished.");
+                actorAnimationFinished = true;
+            };
+            actor.RegisterExternalAnimationCallback(actorAnimCallback);
+
+            actor.PlayAnimation(skillData.animationTrigger, primaryTargetForAnim); 
+            
+            yield return new WaitUntil(() => actorAnimationFinished);
+            Debug.Log($"[COMBAT] {actor.GetName()} confirmed completion of {triggerName} animation for skill {skillData.skillNameKey}");
         }
-        if (effectData == null)
+        else
         {
-            Debug.LogError($"[COMBAT] SkillEffectData is null for skill {skill.skillNameKey}.");
-            yield break;
-        }
-
-        Debug.Log($"[COMBAT] Processing effect '{effectData.effectType}' from skill '{skill.skillNameKey}' on target '{targetCharacter.GetName()}' by actor '{actor.GetName()}'");
-
-        // Play target's hit animation if applicable (and alive)
-        bool shouldPlayHitAnimation = effectData.effectType == SkillEffectType.Damage ||
-                                      effectData.effectType == SkillEffectType.DebuffStat; 
-
-        if (shouldPlayHitAnimation && targetCharacter.IsAlive)
-        {
-            targetCharacter.TakeHit();
-            yield return new WaitUntil(() => !(targetCharacter.GetCurrentState() is HitState) || !targetCharacter.IsAlive);
-            Debug.Log($"[COMBAT] Target ({targetCharacter.GetName()}) completed hit animation sequence or died.");
-        }
-
-        if (!targetCharacter.IsAlive && effectData.effectType != SkillEffectType.Revive)
-        {
-            Debug.Log($"[COMBAT] Target {targetCharacter.GetName()} is dead. Skipping effect {effectData.effectType} for skill {skill.skillNameKey} (unless revive).");
-            yield break;
+            Debug.Log($"[COMBAT] No actor animation defined (trigger is None) for skill {skillData.skillNameKey}.");
         }
 
-        switch (effectData.effectType)
+        // Optional: Play skill cast sound effect here, after actor animation but before projectile/impact
+        // if (skillData.skillCastSound != null)
+        // {
+        //     // Assuming you have an AudioManager or similar
+        //     // AudioManager.Instance.PlaySound(skillData.skillCastSound);
+        //     Debug.Log($"[COMBAT] Played skill cast sound for {skillData.skillNameKey}");
+        // }
+
+        // Optional: Projectile visual (if any)
+        // if (skillData.projectilePrefab != null)
+        // {
+        //     Debug.Log($"[ASH] Spawning projectile for skill {skillData.skillNameKey}");
+        //     // Instantiate projectile, set its target, etc.
+        //     // This might also be a coroutine if the projectile has travel time before impact effects.
+        //     // For simplicity, assuming it's quick or its travel is part of the "impact" phase.
+        //     // yield return StartCoroutine(HandleProjectileSequence(skillData, actor, primaryTargetForAnimOrFirstTarget));
+        // }
+
+        // 2. Apply Skill Effects to Targets
+        // This loop will now correctly wait for each target's hit animation (if any)
+        // before proceeding to the next target or effect, due to changes in ApplySkillEffectToTargetWithSequence
+        // List<Character> validTargets = targets; // Use the 'targets' parameter passed into this method
+        // The parameter 'targets' is now 'resolvedTargets'
+
+        foreach (var target in resolvedTargets) // Iterate over resolvedTargets
         {
-            case SkillEffectType.Damage:
-                DamageEffectResult damageResult = skillProcessor.CalculateDamageEffect(actor, targetCharacter, effectData, skillRankData);
-                if (damageResult.success)
+            if (target == null || !target.IsAlive) 
+            {
+                Debug.Log($"[ASH] Target {target?.GetName() ?? "Unknown"} is null or not alive, skipping effects for skill {skillData.skillNameKey}.");
+                continue;
+            }
+
+            foreach (var effectData in action.SkillRank.effects) 
+            {
+                yield return StartCoroutine(ApplySkillEffectToTargetWithSequence(actor, target, skillData, effectData, action.SkillRank, () => {
+                    Debug.Log($"[ASH] Effect '{effectData.effectType}' applied to {target.GetName()} by {actor.GetName()} for skill {skillData.skillNameKey}.");
+                }));
+
+                if (!target.IsAlive) 
                 {
-                    // MODIFIED: Call ApplyAndDisplayDamage from SkillEffectProcessor
-                    skillProcessor.ApplyAndDisplayDamage(targetCharacter, damageResult);
-                    Debug.Log($"[COMBAT] Damage effect processed for {targetCharacter.GetName()}. Crit: {damageResult.isCrit}, Final Damage: {damageResult.finalDamage}");
+                    Debug.Log($"[ASH] Target {target.GetName()} died. Breaking from applying further effects to this target from skill {skillData.skillNameKey}.");
+                    break; 
                 }
-                else
-                {
-                    Debug.Log($"[COMBAT] Damage calculation failed or was skipped for {targetCharacter.GetName()}.");
-                }
-                break;
-
-            case SkillEffectType.Heal:
-                HealEffectResult healResult = skillProcessor.CalculateHealEffect(actor, targetCharacter, effectData, skillRankData);
-                if (healResult.success)
-                {
-                    // MODIFIED: Call ApplyAndDisplayHeal from SkillEffectProcessor
-                    skillProcessor.ApplyAndDisplayHeal(targetCharacter, healResult);
-                    Debug.Log($"[COMBAT] Heal effect processed for {targetCharacter.GetName()}. Crit: {healResult.isCrit}, Final Heal: {healResult.finalHeal}");
-                }
-                else
-                {
-                    Debug.Log($"[COMBAT] Heal calculation failed or was skipped for {targetCharacter.GetName()}.");
-                }
-                break;
-
-            case SkillEffectType.BuffStat: 
-            case SkillEffectType.DebuffStat: 
-                if (targetCharacter.IsAlive || (targetCharacter.GetCurrentState() is DeathState && effectData.statToModify == StatType.MaxHealth))
-                {
-                    // Calculate the actual modifier value, potentially including scaling
-                    // Assuming CalculateValueWithScaling is correctly in SkillEffectProcessor
-                    float modifierActualValue = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
-
-                    TemporaryModifier newModifier = new TemporaryModifier
-                    {
-                        statType = effectData.statToModify,
-                        value = modifierActualValue, // Use the calculated value
-                        duration = effectData.duration,
-                        isBuff = (effectData.effectType == SkillEffectType.BuffStat), // BuffStat is a buff, DebuffStat is not.
-                        sourceName = skill.skillNameKey
-                    };
-                    targetCharacter.AddTemporaryModifier(newModifier);
-                    Debug.Log($"[COMBAT] Applied modifier {newModifier.statType} from {newModifier.sourceName} to {targetCharacter.GetName()}. Value: {newModifier.value}, Duration: {newModifier.duration}, IsBuff: {newModifier.isBuff}");
-                }
-                else
-                {
-                    Debug.Log($"[COMBAT] Skipped applying stat modifier from {skill.skillNameKey} to {targetCharacter.GetName()} because target is dead and conditions not met.");
-                }
-                break;
-
-            // case SkillEffectType.ApplyStatusEffect:
-            //    // TODO: Implement logic to apply status effects
-            //    Debug.Log($"[COMBAT] Applying status effect (not yet implemented) from {skill.skillNameKey} to {targetCharacter.GetName()}.");
-            //    break;
-
-            // case SkillEffectType.ClearStatusEffect:
-            //    // TODO: Implement logic to clear status effects
-            //    Debug.Log($"[COMBAT] Clearing status effect (not yet implemented) from {skill.skillNameKey} on {targetCharacter.GetName()}.");
-            //    break;
-
-            // case SkillEffectType.Revive:
-            //    // TODO: Implement revive logic
-            //    // float reviveHealthPercentage = effectData.baseValue; // e.g., baseValue is 0.25 for 25% health
-            //    // targetCharacter.Revive(reviveHealthPercentage);
-            //    Debug.Log($"[COMBAT] Reviving (not yet implemented) {targetCharacter.GetName()} with skill {skill.skillNameKey}.");
-            //    break;
-
-            default:
-                Debug.LogWarning($"[COMBAT] Unhandled SkillEffectType: {effectData.effectType} for skill {skill.skillNameKey}");
-                break;
+            }
         }
-        yield return null;
+
+        Debug.Log($"[COMBAT] Skill sequence complete for {skillData.skillNameKey}");
+
+        // Ensure the actor returns to Idle animation state
+        if (actor != null && actor.IsAlive) // Check if actor is still valid
+        {
+            Debug.Log($"[ASH] Setting actor {actor.GetName()} to Idle animation after skill {skillData.skillNameKey}.");
+            actor.PlayAnimation(AnimationTriggerName.Idle, null); // Assuming AnimationTriggerName.Idle exists
+        }
+
+        onComplete?.Invoke();
+        _activeSequences--;
     }
-	
-	private int CalculateDamage(Character attacker, Character target)
+
+    private IEnumerator ApplySkillEffectToTargetWithSequence(
+        Character actor, Character target, SkillDefinitionSO skillDef, SkillEffectData effectData, SkillRankData rankData, Action onEffectAppliedToTarget)
     {
-        if (attacker == null || target == null) return 0;
+        _activeSequences++;
+        Debug.Log($"[COMBAT] Processing effect '{effectData.effectType}' from skill '{skillDef.skillNameKey}' on target '{target.GetName()}' by actor '{actor.GetName()}'");
 
-        // Basic damage calculation: Attacker's Attack Power - Target's Defense
-        // You can expand this with critical hits, randomness, elemental weaknesses/resistances, etc.
-        float attackPower = attacker.GetAttackPower(); // Assuming Character has GetAttackPower()
-        float defense = target.GetDefense();       // Assuming Character has GetDefense()
+        // --- HIT ANIMATION ---
+        bool playedAnimation = false;
 
-        int damage = Mathf.RoundToInt(Mathf.Max(1, attackPower - defense)); // Ensure at least 1 damage
+        if (target.IsAlive)
+        {
+            bool targetAnimationFinished = false;
+
+            if (effectData.effectType == SkillEffectType.Damage || effectData.effectType == SkillEffectType.DebuffStat) // Fallback to generic "Hit" for these types
+            {
+                Debug.Log($"[ASH] Preparing generic target 'Hit' animation for {target.GetName()} (effect type based, as skill definition does not specify a target animation).");
+                target.RegisterExternalAnimationCallback(() => {
+                     Debug.Log($"[ASH] EXTERNAL CALLBACK: Target ({target.GetName()}) animation 'Hit' (from TakeHit) finished.");
+                    targetAnimationFinished = true;
+                });
+                target.TakeHit(); // Assumes TakeHit() uses the external callback system and plays a "Hit" animation
+                yield return new WaitUntil(() => targetAnimationFinished);
+                Debug.Log($"[COMBAT] Target ({target.GetName()}) confirmed completion of 'Hit' animation (from TakeHit).");
+                
+                // Ensure the target returns to Idle animation state after the hit animation
+                if (target.IsAlive) // Check again, as effects haven't been applied yet but good practice
+                {
+                    Debug.Log($"[ASH] Setting target {target.GetName()} to Idle animation after 'Hit'.");
+                    target.PlayAnimation(AnimationTriggerName.Idle, null); // Assuming AnimationTriggerName.Idle exists
+                }
+                playedAnimation = true;
+            }
+            // Add other 'else if' blocks here if other effect types should trigger specific target animations
+            // and ensure they also reset to Idle if necessary.
+        }
         
-        // Example: Add a small random variance
-        // damage = Mathf.RoundToInt(damage * Random.Range(0.9f, 1.1f));
-        // damage = Mathf.Max(1, damage); // Ensure it's still at least 1 after variance
+        if (target.IsAlive && !playedAnimation)  // MODIFIED: Was target.IsAlive()
+        {
+             Debug.Log($"[COMBAT] No specific hit animation played for target ({target.GetName()}) for effect '{effectData.effectType}'.");
+        }
+        else if (!target.IsAlive) // MODIFIED: Was !target.IsAlive()
+        {
+            Debug.Log($"[COMBAT] Target ({target.GetName()}) is not alive, skipping hit animation for effect '{effectData.effectType}'.");
+        }
+        
+        // --- SFX for impact ---
+        // if (effectData.impactSound != null) // SkillEffectData does not have impactSound
+        // {
+        //     // AudioManager.Instance.PlaySound(effectData.impactSound);
+        //      Debug.Log($"[COMBAT] Played impact sound for effect '{effectData.effectType}' on {target.GetName()}");
+        // }
 
-        Debug.Log($"[COMBAT_CALC] {attacker.GetName()} (AP:{attackPower}) vs {target.GetName()} (Def:{defense}) = Base Damage: {damage}");
+        // --- APPLY EFFECT LOGIC (Damage, Heal, Buff, Debuff, etc.) ---
+        // This part happens AFTER the hit animation (if any) has completed.
+        if (target.IsAlive || effectData.effectType == SkillEffectType.Revive) // MODIFIED: Was target.IsAlive() // Example: Revive can apply to dead targets
+        {
+            switch (effectData.effectType)
+            {
+                case SkillEffectType.Damage:
+                    DamageEffectResult damageResult = skillProcessor.CalculateDamageEffect(actor, target, effectData, rankData);
+                    skillProcessor.ApplyAndDisplayDamage(target, damageResult); // Shows damage number
+                    Debug.Log($"[COMBAT] Damage effect processed for {target.GetName()}. Crit: {damageResult.isCrit}, Final Damage: {damageResult.finalDamage}");
+                    break;
+                case SkillEffectType.Heal:
+                    HealEffectResult healResult = skillProcessor.CalculateHealEffect(actor, target, effectData, rankData);
+                    skillProcessor.ApplyAndDisplayHeal(target, healResult); // Shows heal number
+                    Debug.Log($"[COMBAT] Heal effect processed for {target.GetName()}. Crit: {healResult.isCrit}, Final Heal: {healResult.finalHeal}");
+                    break;
+                case SkillEffectType.ApplyStatusEffect:
+                    // Potency for status effect might be calculated differently or use baseValue directly
+                    float potency = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
+                    target.ApplyStatusEffect(effectData, actor, potency); // Pass effectData, caster, and calculated potency
+                    Debug.Log($"[COMBAT] Status effect '{effectData.statusEffectToApply?.statusNameKey}' processed for {target.GetName()}. Potency: {potency}");
+                    break;
+                // Add cases for Buff, Debuff, etc.
+                default:
+                    Debug.LogWarning($"[ASH] Effect type {effectData.effectType} not fully handled in ApplySkillEffectToTargetWithSequence.");
+                    break;
+            }
+
+            // Check for death after applying the effect
+            if (effectData.effectType == SkillEffectType.Damage && !target.IsAlive) // MODIFIED: Was !target.IsAlive()
+            {
+                Debug.Log($"[COMBAT] Target {target.GetName()} died as a result of {skillDef.skillNameKey}'s effect '{effectData.effectType}'.");
+                // Optionally, play death animation (which would also need a wait)
+                // bool deathAnimComplete = false;
+                // target.RegisterExternalAnimationCallback(() => deathAnimComplete = true);
+                // target.PlayAnimation(AnimationTriggerName.Death.ToString()); // AnimationTriggerName enum needs .ToString() if PlayAnimation expects string
+                // yield return new WaitUntil(() => deathAnimComplete);
+                // Debug.Log($"[COMBAT] Target {target.GetName()} death animation complete.");
+            }
+        }
+        else
+        {
+            Debug.Log($"[ASH] Target {target.GetName()} is dead and effect '{effectData.effectType}' cannot apply to dead targets (unless it's Revive, etc.). Skipping effect application.");
+        }
+
+        onEffectAppliedToTarget?.Invoke();
+        _activeSequences--;
+    }
+
+    private int CalculateDamage(Character attacker, Character target)
+    {
+        // Basic damage calculation: Attacker's AttackPower - Target's Defense
+        // This should eventually use your game's damage formula, consider critical hits,
+        // damage types, resistances, buffs/debuffs, etc.
+        if (attacker == null || target == null)
+        {
+            Debug.LogError("[CalculateDamage] Attacker or Target is null.");
+            return 0;
+        }
+
+        int damage = attacker.GetAttackPower() - target.GetDefense();
+        damage = Mathf.Max(damage, 1); // Ensure damage is at least 1, or 0 if you prefer no damage on high defense
+
+        // Example: Add a random variance
+        // damage = Mathf.RoundToInt(damage * Random.Range(0.9f, 1.1f));
+        
+        Debug.Log($"[CalculateDamage] {attacker.GetName()} (AP:{attacker.GetAttackPower()}) vs {target.GetName()} (Def:{target.GetDefense()}) = Base Damage: {damage}");
         return damage;
     }
 
     private int CalculateMagicDamage(Character caster, Character target)
     {
-        if (caster == null || target == null) return 0;
+        // Basic magic damage calculation: Caster's MagicPower - Target's MagicResistance
+        // This should eventually use your game's magic damage formula, consider critical hits,
+        // elemental types, resistances, buffs/debuffs, etc.
+        if (caster == null || target == null)
+        {
+            Debug.LogError("[CalculateMagicDamage] Caster or Target is null.");
+            return 0;
+        }
 
-        // Basic magic damage: Caster's Magic Power - Target's Magic Resistance
-        float magicPower = caster.GetMagicPower();         // Assuming Character has GetMagicPower()
-        float magicResistance = target.GetMagicResistance(); // Assuming Character has GetMagicResistance()
+        int damage = caster.GetMagicPower() - target.GetMagicResistance();
+        damage = Mathf.Max(damage, 1); // Ensure damage is at least 1, or 0 if you prefer
 
-        int damage = Mathf.RoundToInt(Mathf.Max(1, magicPower - magicResistance));
-        
-        Debug.Log($"[COMBAT_CALC] {caster.GetName()} (MP:{magicPower}) vs {target.GetName()} (MR:{magicResistance}) = Base Magic Damage: {damage}");
+        // Example: Add a random variance
+        // damage = Mathf.RoundToInt(damage * Random.Range(0.9f, 1.1f));
+
+        Debug.Log($"[CalculateMagicDamage] {caster.GetName()} (MP:{caster.GetMagicPower()}) vs {target.GetName()} (MR:{target.GetMagicResistance()}) = Base Magic Damage: {damage}");
         return damage;
     }
 }

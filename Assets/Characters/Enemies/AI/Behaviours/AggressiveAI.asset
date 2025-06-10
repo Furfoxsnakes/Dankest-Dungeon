@@ -15,5 +15,8 @@ MonoBehaviour:
   attemptSkillChance: 80
   aiSkillPool:
   - skill: {fileID: 11400000, guid: 85f72e5a322cbfd409aaf7efd11e9322, type: 2}
+    rankToUse: 1
     weight: 50
-  designatedFallbackSkill: {fileID: 11400000, guid: c1cde76c806fb4e4b91b6dab38be1e31, type: 2}
+  designatedFallbackSkill:
+    skill: {fileID: 11400000, guid: c1cde76c806fb4e4b91b6dab38be1e31, type: 2}
+    rankToUse: 1

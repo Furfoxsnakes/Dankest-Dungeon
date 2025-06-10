@@ -14,6 +14,7 @@ public class Character : MonoBehaviour
 
     [SerializeField] public Animator characterAnimator;
     [SerializeField] private bool debugStateTransitions = false;
+    [SerializeField] private CharacterVisuals characterVisuals; // Add reference to CharacterVisuals
 
     internal int _currentHealth;
     public int CurrentHealth => _currentHealth;
@@ -25,11 +26,11 @@ public class Character : MonoBehaviour
     private Action _onAnimationCompleteCallback;
 
     // === MODULES ===
-    [BoxGroup("Modules", CenterLabel = true)]
-    [PropertyOrder(5)]
-    [SerializeField, InlineProperty, HideLabel] // InlineProperty makes it look integrated
-    private CharacterSkills characterSkills = new CharacterSkills();
-    public CharacterSkills Skills => characterSkills; // Public accessor
+    // [BoxGroup("Modules", CenterLabel = true)] // Removed CharacterSkills field
+    // [PropertyOrder(5)]
+    // [SerializeField, InlineProperty, HideLabel] 
+    // private CharacterSkills characterSkills = new CharacterSkills(); // REMOVED
+    // public CharacterSkills Skills => characterSkills; // REMOVED
 
     private CharacterBuffs characterBuffs;
     public CharacterBuffs Buffs => characterBuffs;
@@ -46,46 +47,40 @@ public class Character : MonoBehaviour
     public IState GetCurrentState() => stateMachine?.CurrentState;
 
     // === ODIN INSPECTOR QUICK ACTIONS (moved some to CharacterSkills) ===
-    [BoxGroup("Character Quick Actions", CenterLabel = true)]
-    [PropertyOrder(100)]
-    [Button("Load Default Skills (Character-Specific)"), GUIColor(0.8f, 0.8f, 1f)]
-    private void LoadDefaultSkills()
-    {
-        // This method would typically involve characterStats or a specific config
-        // to know which skills are "default" for this character type/class.
-        // For example:
-        // if (stats.defaultSkills != null) {
-        //     foreach(var skillInfo in stats.defaultSkills) {
-        //         Skills.LearnSkill(skillInfo.skill, skillInfo.rank);
-        //     }
-        // }
-        Debug.Log($"LoadDefaultSkills called for {GetName()}. Implement character-specific default skills here. Skills can be added via Character.Skills.LearnSkill().");
-    }
+    // [BoxGroup("Character Quick Actions", CenterLabel = true)] // REMOVED SKILL BUTTONS
+    // [PropertyOrder(100)]
+    // [Button("Load Default Skills (Character-Specific)"), GUIColor(0.8f, 0.8f, 1f)]
+    // private void LoadDefaultSkills() // REMOVED
+    // {
+    //     Debug.Log($"LoadDefaultSkills called for {GetName()}. Implement character-specific default skills here. Skills can be added via Character.Skills.LearnSkill().");
+    // }
 
-    [BoxGroup("Character Quick Actions")]
-    [PropertyOrder(101)]
-    [Button("Export Skills (Console)"), GUIColor(0.8f, 1f, 0.8f)]
-    private void ExportSkillsToConsole()
-    {
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        Skills.ExportSkillsToString(sb); // Delegate to CharacterSkills
-        Debug.Log(sb.ToString());
-    }
+    // [BoxGroup("Character Quick Actions")] // REMOVED SKILL BUTTONS
+    // [PropertyOrder(101)]
+    // [Button("Export Skills (Console)"), GUIColor(0.8f, 1f, 0.8f)]
+    // private void ExportSkillsToConsole() // REMOVED
+    // {
+    //     System.Text.StringBuilder sb = new System.Text.StringBuilder();
+    //     Skills.ExportSkillsToString(sb); 
+    //     Debug.Log(sb.ToString());
+    // }
 
 
-    // === PUBLIC SKILL ACCESSORS (delegating to CharacterSkills) ===
-    public IReadOnlyDictionary<SkillDefinitionSO, int> LearnedSkills => Skills.LearnedSkills;
-    public void LearnSkill(SkillDefinitionSO skill, int rank = 1) => Skills.LearnSkill(skill, rank);
-    public void ForgetSkill(SkillDefinitionSO skill) => Skills.ForgetSkill(skill);
-    public bool KnowsSkill(SkillDefinitionSO skill) => Skills.KnowsSkill(skill);
-    public int GetSkillRank(SkillDefinitionSO skill) => Skills.GetSkillRank(skill);
-    public SkillRankData GetSkillRankData(SkillDefinitionSO skill) => Skills.GetSkillRankData(skill);
-    public List<SkillDefinitionSO> GetAvailableSkills() => Skills.GetAvailableSkills();
+    // === PUBLIC SKILL ACCESSORS (delegating to CharacterSkills) === // REMOVED ALL
+    // public IReadOnlyDictionary<SkillDefinitionSO, int> LearnedSkills => Skills.LearnedSkills;
+    // public void LearnSkill(SkillDefinitionSO skill, int rank = 1) => Skills.LearnSkill(skill, rank);
+    // public void ForgetSkill(SkillDefinitionSO skill) => Skills.ForgetSkill(skill);
+    // public bool KnowsSkill(SkillDefinitionSO skill) => Skills.KnowsSkill(skill);
+    // public int GetSkillRank(SkillDefinitionSO skill) => Skills.GetSkillRank(skill);
+    // public SkillRankData GetSkillRankData(SkillDefinitionSO skill) => Skills.GetSkillRankData(skill);
+    // public List<SkillDefinitionSO> GetAvailableSkills() => Skills.GetAvailableSkills();
 
 
     protected virtual void Awake()
     {
         if (characterAnimator == null) characterAnimator = GetComponent<Animator>();
+        if (characterVisuals == null) characterVisuals = GetComponentInChildren<CharacterVisuals>(); // Attempt to find it if not assigned
+        if (characterVisuals == null) Debug.LogError($"CharacterVisuals not found for {GetName()}!");
         
         stateMachine = new StateMachine<CharacterState>();
         if (debugStateTransitions)
@@ -98,7 +93,7 @@ public class Character : MonoBehaviour
         else _currentHealth = stats.maxHealth;
 
         // Initialize Modules
-        characterSkills.Initialize(GetName()); // Pass character name for logging
+        // characterSkills.Initialize(GetName()); // REMOVED
         characterBuffs = new CharacterBuffs(GetName());
         activeStatusEffects = new List<ActiveStatusEffect>(); // Initialize the list
     }
@@ -174,36 +169,41 @@ public class Character : MonoBehaviour
     // Called by CharacterVisuals (or directly by animation events if CharacterVisuals is just a proxy)
     public void OnAnimationComplete()
     {
-        // Prioritize invoking the external callback if one is registered,
-        // as ActionSequenceHandler is likely driving the sequence.
-        // Then clear it so it's a one-shot for ASH.
         Action externalCb = _externalAnimationCompleteCallback;
         if (externalCb != null)
         {
             _externalAnimationCompleteCallback = null; // Clear it immediately
-            Debug.Log($"[{gameObject.name}] Invoking EXTERNAL animation complete callback.");
+            Debug.Log($"[{gameObject.name}] Invoking EXTERNAL animation complete callback. (ActionSequenceHandler should handle this)");
             externalCb.Invoke();
-            // Do NOT invoke internal callback if external was present and handled it.
-            // The external system (ASH) is now responsible for the flow.
-            // If the internal state also needs to react, it should be after ASH is done with this step.
-            // This might require ASH to signal the character state machine if needed.
-            // For now, let's assume ASH's callback is sufficient for this specific event.
+            // External callback (likely from ActionSequenceHandler) takes precedence.
+            // Internal callback is not invoked to prevent double-processing.
         }
-        else
+        else // No external callback, consider internal.
         {
-            // If no external callback, then it's for the character's internal state machine.
             Action internalCb = _internalAnimationCompleteCallback;
             if (internalCb != null)
             {
-                // Internal callback should also typically be one-shot for a given state's animation.
-                // The state itself should re-register if it needs another one.
-                _internalAnimationCompleteCallback = null; 
-                Debug.Log($"[{gameObject.name}] Invoking INTERNAL animation complete callback.");
-                internalCb.Invoke();
+                // If the character is currently in IdleState, an animation completing
+                // is less likely to be the specific animation that an action state (e.g., AttackState)
+                // registered an internal callback for. This heuristic aims to prevent an Idle
+                // animation from prematurely consuming a callback intended for a subsequent action.
+                if (stateMachine.CurrentState is IdleState)
+                {
+                    Debug.Log($"[{gameObject.name}] OnAnimationComplete called while in IdleState. An internal callback was pending but will NOT be invoked/cleared at this time, to preserve it for a potential action state. Animation events from IdleState should generally not consume critical action callbacks.");
+                    // We do not invoke or clear internalCb here, assuming it's for a more specific state.
+                    // This might mean the warning below still appears if only an Idle animation completed.
+                }
+                else
+                {
+                    // If not in IdleState, assume the internal callback is relevant to the current active state.
+                    _internalAnimationCompleteCallback = null; // Clear it before invoking
+                    Debug.Log($"[{gameObject.name}] Invoking INTERNAL animation complete callback (e.g., for AttackState, MagicCastState).");
+                    internalCb.Invoke();
+                }
             }
             else
             {
-                Debug.LogWarning($"[{gameObject.name}] OnAnimationComplete called, but no internal or external callback was registered.");
+                Debug.LogWarning($"[{gameObject.name}] OnAnimationComplete called. No external callback was registered. No internal callback was pending or it was not consumed (e.g., due to being in IdleState).");
             }
         }
     }
@@ -221,28 +221,53 @@ public class Character : MonoBehaviour
     // but NOT necessarily register callbacks themselves. The state (AttackState, HitState)
     // or external systems (ASH) should register the callbacks they need.
 
-    public void PlayAnimation(AnimationType animType, Character targetForAnim = null)
+    public void PlayAnimation(AnimationTriggerName trigger, Character targetForAnim = null)
     {
-        // This method should primarily tell CharacterVisuals to play the animation.
-        // Callback registration should be done by the caller (ASH or Character's current state).
-        Debug.Log($"[{gameObject.name}] PlayAnimation called: {animType}");
-        PlayAnimation(animType, targetForAnim);
+        Debug.Log($"[{gameObject.name}] PlayAnimation called with trigger: {trigger}");
+        if (characterVisuals != null)
+        {
+            characterVisuals.PlayAnimation(trigger);
+        }
+        else
+        {
+            Debug.LogError($"[{gameObject.name}] CharacterVisuals is null. Cannot play animation with trigger: {trigger}");
+        }
     }
 
     public void Attack(Character target)
     {
-        // This method should primarily tell CharacterVisuals to play the attack animation.
-        // The AttackState should have registered the internal callback.
         Debug.Log($"[{gameObject.name}] Attack called on {target?.name ?? "null target"}");
-        PlayAnimation(AnimationType.Attack, target); // Or a specific attack animation
+        PlayAnimation(AnimationTriggerName.Attack, target);
     }
 
     public void TakeHit()
     {
-        // This method should primarily tell CharacterVisuals to play the hit animation.
-        // The HitState (if you have one) or ASH should register the callback.
         Debug.Log($"[{gameObject.name}] TakeHit called");
-        PlayAnimation(AnimationType.Hit);
+        PlayAnimation(AnimationTriggerName.Hit);
+    }
+
+    public void Defend()
+    {
+        if (!IsAlive || stateMachine.CurrentState is DeathState) return;
+        Debug.Log($"[{gameObject.name}] Defend called");
+        // Assuming you have a DefendState similar to AttackState or IdleState
+        stateMachine.ChangeState(new DefendState(this)); // Ensure DefendState exists
+    }
+
+    public void CastMagic(Character target)
+    {
+        if (!IsAlive || stateMachine.CurrentState is DeathState) return;
+        Debug.Log($"[{gameObject.name}] CastMagic called on {target?.name ?? "null target"}");
+        // Assuming you have a MagicCastState
+        stateMachine.ChangeState(new MagicCastState(this, target)); // Ensure MagicCastState exists and can take a target
+    }
+
+    public void UseItem(Character target)
+    {
+        if (!IsAlive || stateMachine.CurrentState is DeathState) return;
+        Debug.Log($"[{gameObject.name}] UseItem called on {target?.name ?? "self/area"}");
+        // Assuming you have an ItemState
+        stateMachine.ChangeState(new ItemState(this, target)); // Ensure ItemState exists and can take a target
     }
 
 
@@ -376,10 +401,8 @@ public class Character : MonoBehaviour
 
     public virtual void Die()
     {
-        bool wasAlreadyDeadOrDying = _currentHealth <= 0 || stateMachine.CurrentState is DeathState;
-        _currentHealth = 0; 
-        if (wasAlreadyDeadOrDying && stateMachine.CurrentState is DeathState) return;
-        Debug.Log($"<color=black>[CHARACTER] {GetName()} has died. Changing to DeathState.</color>");
-        stateMachine.ChangeState(new DeathState(this)); 
+        // ...
+        PlayAnimation(AnimationTriggerName.Death);
+        // ...
     }
 }

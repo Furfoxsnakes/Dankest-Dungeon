@@ -56,8 +56,8 @@ public class CombatSystem : MonoBehaviour
     
     public void Initialize(List<Character> players, List<Character> enemies)
     {
-        playerCharacters = players;
-        enemyCharacters = enemies;
+        _playerTeamCharacters = players;
+        _enemyTeamCharacters = enemies;
         
         Debug.Log($"[COMBAT] Combat system initialized with {players.Count} players and {enemies.Count} enemies");
         
@@ -90,13 +90,17 @@ public class CombatSystem : MonoBehaviour
         Debug.Log($"[COMBAT] {type} character {character.GetName()} validated for combat");
     }
     
-    public List<Character> GetPlayerCharacters() => playerCharacters;
-    public List<Character> GetEnemyCharacters() => enemyCharacters;
+    public List<Character> GetPlayerCharacters() => _playerTeamCharacters;
+    public List<Character> GetEnemyCharacters() => _enemyTeamCharacters;
 
     // Public accessors for team lists if needed by other systems or UI
     public List<Character> GetPlayerTeamCharacters() => _playerTeamCharacters;
     public List<Character> GetEnemyTeamCharacters() => _enemyTeamCharacters;
-    
+
+    public TargetingSystem GetTargetingSystem() => targetingSystem; // Add this line
+
+    public SkillEffectProcessor GetSkillEffectProcessor() => skillProcessor; // Add this line
+
     public void ExecuteAction(BattleAction action, System.Action onComplete)
     {
         if (actionSequenceHandler != null)

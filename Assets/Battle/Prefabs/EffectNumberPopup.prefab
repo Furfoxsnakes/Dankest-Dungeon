@@ -370,11 +370,11 @@ MonoBehaviour:
       m_NumAlphaKeys: 2
     fromNumber: 10
     toNumber: 9999
-  durationFadeIn: 0.05
+  durationFadeIn: 0.2
   enableOffsetFadeIn: 0
   offsetFadeIn: {x: 0.5, y: 0}
-  enableScaleFadeIn: 1
-  scaleFadeIn: {x: 0.5, y: 0.5}
+  enableScaleFadeIn: 0
+  scaleFadeIn: {x: 2, y: 2}
   enableCrossScaleFadeIn: 0
   crossScaleFadeIn: {x: 1, y: 1.5}
   enableShakeFadeIn: 0
@@ -395,8 +395,8 @@ MonoBehaviour:
     speed: 5
     minX: 0
     maxX: 0
-    minY: 0.5
-    maxY: 0.5
+    minY: 0.25
+    maxY: 0.25
     randomFlip: 0
   enableVelocity: 0
   velocitySettings:
@@ -472,7 +472,7 @@ MonoBehaviour:
     fromNumber: 0
     toNumber: 1000
     fromScale: 1
-    toScale: 2
+    toScale: 1.5
   enableScaleOverTime: 0
   scaleOverTime:
     serializedVersion: 2
@@ -506,15 +506,15 @@ MonoBehaviour:
   enableCombination: 0
   combinationSettings:
     method: 0
-    maxDistance: 10
-    spawnDelay: 0.2
-    absorbDuration: 0.4
+    maxDistance: 3
+    spawnDelay: 0
+    absorbDuration: 0.8
     scaleCurve:
       serializedVersion: 2
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 1
+        value: 0
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -522,7 +522,7 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 0.7
+        time: 0.3
         value: 1
         inSlope: 0
         outSlope: 0
@@ -532,7 +532,7 @@ MonoBehaviour:
         outWeight: 0
       - serializedVersion: 3
         time: 1
-        value: 0
+        value: 1
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -547,16 +547,7 @@ MonoBehaviour:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 0.5
-        value: 1
+        value: 0.4
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -575,12 +566,12 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    moveToAbsorber: 1
-    teleportToAbsorber: 0
+    moveToAbsorber: 0
+    teleportToAbsorber: 1
     absorberScaleFactor: 1.5
     absorberScaleFade: 15
-    instantGain: 0
-    bonusLifetime: 1
+    instantGain: 1
+    bonusLifetime: 0.5
   enableDestruction: 0
   destructionSettings:
     maxDistance: 2
@@ -634,15 +625,15 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  enableCollision: 0
+  enableCollision: 1
   collisionSettings:
     radius: 0.5
     pushFactor: 1
-    desiredDirection: {x: 0, y: 0, z: 0}
-  enablePush: 0
+    desiredDirection: {x: 0, y: 3, z: 0}
+  enablePush: 1
   pushSettings:
-    radius: 3
-    pushOffset: 1
+    radius: 0.25
+    pushOffset: 0
   updateDelay: 0.0125
   enablePooling: 1
   poolSize: 50

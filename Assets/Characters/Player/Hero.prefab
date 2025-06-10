@@ -172,15 +172,14 @@ MonoBehaviour:
   stats: {fileID: 11400000, guid: 80858a0d24e41c14e9b33cc80d324e65, type: 2}
   characterAnimator: {fileID: 3950286884901781173}
   debugStateTransitions: 0
+  characterVisuals: {fileID: 3083625575770314195}
+  deathEffect: {fileID: 0}
   characterSkills:
     serializedSkills:
     - skill: {fileID: 11400000, guid: c1cde76c806fb4e4b91b6dab38be1e31, type: 2}
       rank: 1
     - skill: {fileID: 11400000, guid: 85f72e5a322cbfd409aaf7efd11e9322, type: 2}
       rank: 1
-    - skill: {fileID: 11400000, guid: 111b91132b9993e448bb4d2395d8bd66, type: 2}
-      rank: 1
     skillToAdd: {fileID: 0}
     rankToAdd: 1
     skillToRemove: {fileID: 0}
-  deathEffect: {fileID: 0}

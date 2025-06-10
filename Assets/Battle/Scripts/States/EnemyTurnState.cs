@@ -26,7 +26,8 @@ public class EnemyTurnState : BattleState
         if (currentEnemy == null || !currentEnemy.IsAlive)
         {
             Debug.LogWarning($"EnemyTurnState: Active enemy {currentEnemy?.GetName()} is null or not alive. Advancing turn.");
-            Complete(BattleEvent.EnemyActionComplete, new BattleAction(currentEnemy, currentEnemy, ActionType.Skip)); // Skip turn
+            // For Skip, PrimaryTarget can be self. ResolvedTargets can be a list containing self or null.
+            Complete(BattleEvent.EnemyActionComplete, new BattleAction(currentEnemy, currentEnemy, ActionType.Skip)); 
             return;
         }
 
@@ -45,12 +46,12 @@ public class EnemyTurnState : BattleState
         if (!currentEnemy.IsAlive)
         {
             Debug.LogWarning($"EnemyTurnState: Active enemy {currentEnemy.GetName()} died from status effects. Advancing turn.");
-            // Ensure decidedAction is at least a Skip action if the enemy died before deciding.
             if (decidedAction == null)
             {
+                // For Skip, PrimaryTarget can be self.
                 decidedAction = new BattleAction(currentEnemy, currentEnemy, ActionType.Skip);
             }
-            Complete(BattleEvent.EnemyActionComplete, decidedAction); // Skip turn
+            Complete(BattleEvent.EnemyActionComplete, decidedAction); 
             return;
         }
 
@@ -71,14 +72,13 @@ public class EnemyTurnState : BattleState
             {
                 actionPerformed = true;
 
-                // Ensure decidedAction is not null (e.g., if PerformAIDecision had an issue but enemy is still alive)
                 if (decidedAction == null)
                 {
                     Debug.LogWarning($"EnemyTurnState: decidedAction was null for {currentEnemy.GetName()} after thinking time. Forcing Skip.");
+                    // For Skip, PrimaryTarget can be self.
                     decidedAction = new BattleAction(currentEnemy, currentEnemy, ActionType.Skip);
                 }
                 
-                // Send the pre-decided action to the battle manager
                 Complete(BattleEvent.EnemyActionComplete, decidedAction);
             }
         }
@@ -86,42 +86,42 @@ public class EnemyTurnState : BattleState
 
     private void PerformAIDecision()
     {
-        // currentEnemy is already set in Enter() and checked for null/alive
         if (currentEnemy == null || !currentEnemy.IsAlive)
         {
-            // This case should ideally be caught earlier, but as a safeguard:
             Debug.LogWarning($"PerformAIDecision called with a null or dead enemy: {currentEnemy?.GetName()}. Defaulting to Skip.");
+            // For Skip, PrimaryTarget can be self.
             decidedAction = new BattleAction(currentEnemy, currentEnemy, ActionType.Skip);
             return;
         }
         
-        // Ensure it's actually an Enemy type
-        if (currentEnemy is Enemy enemyAI) // Renamed 'enemy' to 'enemyAI' to avoid conflict
+        if (currentEnemy is Enemy enemyAI) 
         {
-            // Get the AI decision from the enemy
             decidedAction = enemyAI.DecideAction(
                 battleManager.GetEnemyCharacters(),
                 battleManager.GetPlayerCharacters()
             );
 
-            if (decidedAction != null && decidedAction.Target != null)
+            // The Enemy.DecideAction method is now responsible for setting PrimaryTarget 
+            // and ResolvedTargets within the BattleAction it returns.
+            if (decidedAction != null && decidedAction.PrimaryTarget != null)
             {
-                Debug.Log($"[ENEMY AI] {currentEnemy.GetName()} decided to use '{decidedAction.ActionType}' (Skill: {decidedAction.UsedSkill?.skillNameKey}) on {decidedAction.Target.GetName()}");
+                Debug.Log($"[ENEMY AI] {currentEnemy.GetName()} decided to use '{decidedAction.ActionType}' (Skill: {decidedAction.UsedSkill?.skillNameKey}) on {decidedAction.PrimaryTarget.GetName()}. Resolved targets: {decidedAction.ResolvedTargets?.Count ?? 0}");
             }
             else if (decidedAction != null)
             {
-                 Debug.Log($"[ENEMY AI] {currentEnemy.GetName()} decided to use '{decidedAction.ActionType}' (Skill: {decidedAction.UsedSkill?.skillNameKey}) with no specific target (e.g. self-cast or AoE).");
+                 Debug.Log($"[ENEMY AI] {currentEnemy.GetName()} decided to use '{decidedAction.ActionType}' (Skill: {decidedAction.UsedSkill?.skillNameKey}) with no specific primary target (e.g. self-cast or broad AoE). Resolved targets: {decidedAction.ResolvedTargets?.Count ?? 0}");
             }
             else
             {
                 Debug.LogWarning($"[ENEMY AI] {currentEnemy.GetName()} failed to decide an action. Defaulting to Skip.");
+                // For Skip, PrimaryTarget can be self.
                 decidedAction = new BattleAction(currentEnemy, currentEnemy, ActionType.Skip);
             }
         }
         else
         {
-            // Fallback for non-enemy characters (e.g. if a player character was somehow put in enemy team and got a turn)
             Debug.LogWarning($"Current actor '{currentEnemy.GetName()}' is not an Enemy type! Defaulting to Skip.");
+            // For Skip, PrimaryTarget can be self.
             decidedAction = new BattleAction(
                 currentEnemy,
                 currentEnemy,

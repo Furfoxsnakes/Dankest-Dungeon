@@ -43,9 +43,8 @@ namespace DankestDungeon.Skills
         public Sprite icon;
 
         [BoxGroup("Visuals & Animation")]
-        [Tooltip("Animation type to play when this skill is used.")]
-        [EnumToggleButtons] // Makes it look nice in the inspector
-        public AnimationType animationType = AnimationType.Attack; // Default to Attack
+        [Tooltip("Animator trigger to play when this skill is used.")]
+        public AnimationTriggerName animationTrigger = AnimationTriggerName.Attack; // Default to a common trigger
 
         [BoxGroup("Targeting & Usage", CenterLabel = true)]
         [EnumToggleButtons]

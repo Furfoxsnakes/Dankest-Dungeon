@@ -186,13 +186,7 @@ MonoBehaviour:
   stats: {fileID: 11400000, guid: 84fd0d44d48cfb044ac1937412ddb9cb, type: 2}
   characterAnimator: {fileID: 5213369283770450585}
   debugStateTransitions: 0
-  characterSkills:
-    serializedSkills:
-    - skill: {fileID: 11400000, guid: 85f72e5a322cbfd409aaf7efd11e9322, type: 2}
-      rank: 1
-    skillToAdd: {fileID: 0}
-    rankToAdd: 1
-    skillToRemove: {fileID: 0}
+  characterVisuals: {fileID: 643134311126449927}
   experienceValue: 10
   lootPrefab: {fileID: 0}
 --- !u!114 &2538651094341754136

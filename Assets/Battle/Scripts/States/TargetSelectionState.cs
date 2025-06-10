@@ -8,19 +8,22 @@ public class TargetSelectionState : BattleState
 {
     private Character _actingCharacter;
     private SkillDefinitionSO _skillToUse; // Store the skill being targeted
+    private SkillRankData _skillRankToUse; // Store the specific rank of the skill
     private List<Character> _validTargets;
     private int _currentTargetIndex = -1;
     private BattleUI battleUI; // Declare battleUI field
 
-    public TargetSelectionState(BattleManager manager, Character actingCharacter, SkillDefinitionSO skill) : base(manager)
+    // Modified constructor to accept SkillRankData
+    public TargetSelectionState(BattleManager manager, Character actingCharacter, SkillDefinitionSO skill, SkillRankData skillRank) : base(manager)
     {
         _actingCharacter = actingCharacter;
         _skillToUse = skill;
+        _skillRankToUse = skillRank; // Store the passed SkillRankData
         this.battleUI = manager.GetBattleUI(); // Initialize battleUI from BattleManager
 
-        if (_actingCharacter == null || _skillToUse == null)
+        if (_actingCharacter == null || _skillToUse == null || _skillRankToUse == null)
         {
-            Debug.LogError("TargetSelectionState initialized with null actor or skill.");
+            Debug.LogError($"TargetSelectionState initialized with null actor, skill, or skillRank. Actor: {_actingCharacter?.GetName()}, Skill: {_skillToUse?.skillNameKey}, Rank: {(_skillRankToUse != null ? _skillRankToUse.rankLevel.ToString() : "NULL")}");
         }
         if (this.battleUI == null)
         {
@@ -30,7 +33,7 @@ public class TargetSelectionState : BattleState
 
     public override void Enter()
     {
-        Debug.Log($"<color=green>Target Selection: Enter</color> - {_actingCharacter.GetName()} using {_skillToUse.skillNameKey}");
+        Debug.Log($"<color=green>Target Selection: Enter</color> - {_actingCharacter.GetName()} using {_skillToUse.skillNameKey} (Rank: {_skillRankToUse.rankLevel})");
         
         TargetingSystem targetingSystem = battleManager.GetTargetingSystem();
         if (targetingSystem != null)
@@ -43,11 +46,11 @@ public class TargetSelectionState : BattleState
             _validTargets = new List<Character>(); // Initialize to empty list to prevent null reference later
         }
 
-
         if (_validTargets == null || _validTargets.Count == 0)
         {
             Debug.LogWarning($"No valid targets for skill {_skillToUse.skillNameKey}. Cancelling action.");
-            Complete(BattleEvent.TargetSelectionCancelled, new BattleAction(_actingCharacter, null, _skillToUse));
+            // Use the stored _skillRankToUse
+            Complete(BattleEvent.TargetSelectionCancelled, new BattleAction(_actingCharacter, null, _skillToUse, _skillRankToUse));
             return;
         }
 
@@ -82,7 +85,7 @@ public class TargetSelectionState : BattleState
 
     private void HandleTargetConfirmEvent() // This method is called by InputManager
     {
-        if (_validTargets == null) // Added null check
+        if (_validTargets == null) 
         {
             Debug.LogError("HandleTargetConfirmEvent: _validTargets is null!");
             return;
@@ -90,10 +93,11 @@ public class TargetSelectionState : BattleState
         if (_currentTargetIndex >= 0 && _currentTargetIndex < _validTargets.Count)
         {
             Character confirmedTarget = _validTargets[_currentTargetIndex];
-            BattleAction finalAction = new BattleAction(_actingCharacter, confirmedTarget, _skillToUse);
-            Debug.Log($"<color=yellow>Target Confirmed: {confirmedTarget.GetName()} for skill {_skillToUse.skillNameKey}</color>");
+            // Use the stored _skillRankToUse
+            BattleAction finalAction = new BattleAction(_actingCharacter, confirmedTarget, _skillToUse, _skillRankToUse);
+            Debug.Log($"<color=yellow>Target Confirmed: {confirmedTarget.GetName()} for skill {_skillToUse.skillNameKey} (Rank: {_skillRankToUse.rankLevel})</color>");
             
-            if (battleUI != null) battleUI.HideTargetIndicator(); // battleUI is now accessible
+            if (battleUI != null) battleUI.HideTargetIndicator(); 
             Complete(BattleEvent.TargetSelected, finalAction);
         }
         else
@@ -105,8 +109,9 @@ public class TargetSelectionState : BattleState
     private void HandleCancelEvent() // This method is called by InputManager
     {
         Debug.Log("<color=yellow>Target Selection Cancelled by player (HandleCancelEvent).</color>");
-        if (battleUI != null) battleUI.HideTargetIndicator(); // battleUI is now accessible
-        BattleAction cancelledAction = new BattleAction(_actingCharacter, null, _skillToUse);
+        if (battleUI != null) battleUI.HideTargetIndicator(); 
+        // Use the stored _skillRankToUse
+        BattleAction cancelledAction = new BattleAction(_actingCharacter, null, _skillToUse, _skillRankToUse);
         Complete(BattleEvent.TargetSelectionCancelled, cancelledAction);
     }
 
