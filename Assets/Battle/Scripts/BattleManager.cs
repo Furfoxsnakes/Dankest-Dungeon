@@ -12,6 +12,9 @@ public class BattleManager : MonoBehaviour
     [SerializeField] private BattleUI battleUI;
     [SerializeField] private ActionSequenceHandler actionSequenceHandler; // If BattleManager directly holds it
     
+    [Header("Timing Settings")] // New Header
+    [SerializeField] private float endOfTurnDelay = 2.0f; // New field for end of turn delay
+
     [Header("Formation Settings")]
     [SerializeField] private FormationData playerFormation; // Direct reference instead of string
     [SerializeField] private FormationData enemyFormation;  // Direct reference instead of string
@@ -240,8 +243,16 @@ public class BattleManager : MonoBehaviour
                 }
                 break;
 
+            case BattleEvent.ActionExecutionFinished: // NEW CASE
+                // The data object here is the BattleAction from ActionExecutionState,
+                // currently EndOfTurnState doesn't use it, but it's available if needed.
+                Debug.Log("<color=orange>[BATTLE MANAGER] Action execution finished by ActionExecutionState. Transitioning to EndOfTurnState.</color>");
+                stateMachine.ChangeState(new EndOfTurnState(this, endOfTurnDelay)); // Pass the delay
+                break;
+
             case BattleEvent.ActionFullyComplete: 
-                Debug.Log("<color=orange>[BATTLE MANAGER] ★★★ Action fully completed (from ActionExecutionState), checking battle state ★★★</color>");
+                // This event is now fired by EndOfTurnState
+                Debug.Log("<color=orange>[BATTLE MANAGER] ★★★ EndOfTurnState completed (ActionFullyComplete), checking battle state ★★★</color>");
                 CheckBattleState();
                 break;
             
@@ -365,4 +376,6 @@ public class BattleManager : MonoBehaviour
         Debug.LogError("[BattleManager] CombatSystem reference is missing, cannot provide SkillEffectProcessor.");
         return null;
     }
+
+    public float GetEndOfTurnDelay() => endOfTurnDelay; // Optional: Accessor if other systems need it
 }

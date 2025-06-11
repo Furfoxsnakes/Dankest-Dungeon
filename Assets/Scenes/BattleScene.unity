@@ -541,6 +541,7 @@ MonoBehaviour:
   formationManager: {fileID: 1021190011}
   battleUI: {fileID: 1851572543}
   actionSequenceHandler: {fileID: 1193273364}
+  endOfTurnDelay: 1
   playerFormation: {fileID: 11400000, guid: 6d514ad4f958bbb458820508562a7036, type: 2}
   enemyFormation: {fileID: 11400000, guid: d6e793d1acb507f4892ef7446849d6f1, type: 2}
   uiManager: {fileID: 1701486872}
@@ -1239,7 +1240,8 @@ MonoBehaviour:
   battleUICanvas: {fileID: 1929871508}
   actionButtonsPanel: {fileID: 1665758305}
   partyInfoPanel: {fileID: 0}
-  NormalHitDamageNumberPrefab: {fileID: 6138396993896079539, guid: f94fc366208fbc84db1a9694b8d7a294, type: 3}
+  NormalHitDamageNumberPrefab: {fileID: 2565134981616523126, guid: c4b74ffaa6387e44e8c0c8a0b6f19867, type: 3}
+  damageNumberOffset: {x: 0, y: 0.3, z: 0}
   actionButtonPrefab: {fileID: 7535604232355376184, guid: ba439e00e4a6e6042b55b4aa338e8269, type: 3}
   actionButtonsContainer: {fileID: 1665758306}
 --- !u!1 &1884960629

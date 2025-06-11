@@ -51,6 +51,7 @@
     <Compile Include="Assets\Battle\Scripts\BattleStates.cs" />
     <Compile Include="Assets\Battle\Scripts\States\TargetSelectionState.cs" />
     <Compile Include="Assets\UI\BattleUI.cs" />
+    <Compile Include="Assets\Battle\Scripts\States\EndOfTurnState.cs" />
     <Compile Include="Assets\Skills\Scripts\SkillEffectProcessor.cs" />
     <Compile Include="Assets\Enums\Enums.cs" />
     <Compile Include="Assets\Characters\Scripts\Character.cs" />

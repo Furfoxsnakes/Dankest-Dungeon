@@ -24,6 +24,7 @@ public class BattleUI : MonoBehaviour
     [SerializeField] private GameObject actionButtonsPanel; // Panel containing your action buttons
     [SerializeField] private GameObject partyInfoPanel;
     [SerializeField] private DamageNumber NormalHitDamageNumberPrefab; // Using DamageNumberPro asset
+    [SerializeField] private Vector3 damageNumberOffset = new Vector3(0, 0.1f, 0); // New SerializedField for offset
 
     [Header("Action Buttons")]
     [SerializeField] private GameObject actionButtonPrefab; // Assign your ActionButton prefab
@@ -325,7 +326,7 @@ public class BattleUI : MonoBehaviour
             // DamageNumbersPro typically requires you to call Spawn on the prefab instance.
             // The Spawn method usually takes a position and the number.
             // Adjust the spawn position if needed (e.g., above the target's head)
-            Vector3 spawnPosition = target.transform.position + new Vector3(0, 0.1f, 0); // Example offset
+            Vector3 spawnPosition = target.transform.position + damageNumberOffset; // Use the serialized field
 
             // Spawn the damage number using DamageNumbersPro's API
             // The exact method might vary based on DamageNumbersPro version,

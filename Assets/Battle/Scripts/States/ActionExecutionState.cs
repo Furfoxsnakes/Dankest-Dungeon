@@ -34,7 +34,10 @@ public class ActionExecutionState : BattleState
         if (currentAction == null)
         {
             Debug.LogError("ActionExecutionState entered with no action to execute (currentAction is null).");
-            Complete(BattleEvent.ActionFullyComplete, null); 
+            // If there's no action, we should probably still go through the EndOfTurn pause,
+            // or decide if ActionFullyComplete is more appropriate to skip the pause.
+            // For consistency, let's fire ActionExecutionFinished.
+            Complete(BattleEvent.ActionExecutionFinished, null); 
             return;
         }
         
@@ -55,17 +58,16 @@ public class ActionExecutionState : BattleState
             Debug.Log($"[ActionExecutionState] ActionSequenceHandler has initially processed the action: {currentAction.ActionType}");
             
             _completionEventToFire = DetermineCompletionEvent(currentAction);
-            _actionDataForCompletion = currentAction;
+            _actionDataForCompletion = currentAction; // Keep passing data, BattleManager might need it for the new state
             _ashInitialProcessingDone = true; 
         });
     }
 
     private BattleEvent DetermineCompletionEvent(BattleAction action)
     {
-        // Regardless of player or enemy, when an action's execution is finished,
-        // it means the action is "fully complete" for this turn segment.
-        // BattleManager will then use this to advance the turn.
-        return BattleEvent.ActionFullyComplete;
+        // This state now signals that the *execution* of the action (visuals, effects application) is done.
+        // The new EndOfTurnState will handle the pause before ActionFullyComplete.
+        return BattleEvent.ActionExecutionFinished;
     }
 
     // Removed OnActionComplete() as its role is now handled by Update() checking ASH.
@@ -78,7 +80,7 @@ public class ActionExecutionState : BattleState
             // Now, also check if the ActionSequenceHandler has no more active sequences.
             if (actionSequenceHandler != null && !actionSequenceHandler.IsSequenceRunning())
             {
-                Debug.Log($"<color=green>Action execution fully completed (ASH sequences finished). Event: {_completionEventToFire}</color>");
+                Debug.Log($"<color=green>Action execution processing finished (ASH sequences done). Event: {_completionEventToFire}</color>");
                 Complete(_completionEventToFire, _actionDataForCompletion);
                 _ashInitialProcessingDone = false; // Reset for potential re-entry, though states usually are new instances
             }

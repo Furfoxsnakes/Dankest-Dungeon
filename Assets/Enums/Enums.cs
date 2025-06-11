@@ -2,16 +2,15 @@ public enum BattleEvent
 {
     None,
     SetupComplete,
-    PlayerActionSelected,
-    PlayerSkillSelected,  // New: When a skill is chosen from the UI
+    PlayerSkillSelected,
     TargetSelected,
     TargetSelectionCancelled,
+    EnemyActionComplete,
+    ActionExecutionFinished, // New event
     ActionFullyComplete,
-    EnemyActionComplete,  // Added this event
-    BattleWon,
-    BattleLost,
     VictoryProcessed,
     DefeatProcessed
+    // ... other existing events
 }
 
 // If you don't already have these enums, add them:
