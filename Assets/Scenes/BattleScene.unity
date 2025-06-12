@@ -762,7 +762,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_ComponentVersion: 1
-  m_AssetsPPU: 100
+  m_AssetsPPU: 48
   m_RefResolutionX: 640
   m_RefResolutionY: 360
   m_CropFrame: 0
@@ -808,7 +808,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 1.8
+  orthographic size: 3.75
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
@@ -905,8 +905,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   heroFormationParent: {fileID: 683697036}
   enemyFormationParent: {fileID: 1895267368}
-  spaceBetweenCharacters: 0.75
-  heroStartPosition: {x: -2.75, y: 0, z: 0}
+  spaceBetweenCharacters: 1
+  heroStartPosition: {x: -3.5, y: 0, z: 0}
   enemyStartPosition: {x: 0.5, y: 0, z: 0}
 --- !u!4 &1021190012
 Transform:
@@ -1236,12 +1236,12 @@ MonoBehaviour:
   battleManager: {fileID: 639667956}
   inputManager: {fileID: 145096616}
   worldSpaceIndicator: {fileID: 697993663}
-  indicatorOffset: {x: 0, y: 0.25, z: 0}
+  indicatorOffset: {x: 0, y: 0.5, z: 0}
   battleUICanvas: {fileID: 1929871508}
   actionButtonsPanel: {fileID: 1665758305}
   partyInfoPanel: {fileID: 0}
   NormalHitDamageNumberPrefab: {fileID: 2565134981616523126, guid: c4b74ffaa6387e44e8c0c8a0b6f19867, type: 3}
-  damageNumberOffset: {x: 0, y: 0.3, z: 0}
+  damageNumberOffset: {x: 0, y: 0.65, z: 0}
   actionButtonPrefab: {fileID: 7535604232355376184, guid: ba439e00e4a6e6042b55b4aa338e8269, type: 3}
   actionButtonsContainer: {fileID: 1665758306}
 --- !u!1 &1884960629
