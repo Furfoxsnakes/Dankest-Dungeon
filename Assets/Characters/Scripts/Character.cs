@@ -18,6 +18,8 @@ public class Character : MonoBehaviour
 
     internal int _currentHealth;
     public int CurrentHealth => _currentHealth;
+    internal int _currentMana; // Add this line
+    public int CurrentMana => _currentMana; // Add this line
     public bool IsAlive => _currentHealth > 0;
     public int FormationPosition { get; set; }
 
@@ -90,7 +92,11 @@ public class Character : MonoBehaviour
         }
 
         if (stats == null) Debug.LogError($"CharacterStats not assigned for {GetName()}!");
-        else _currentHealth = stats.maxHealth;
+        else
+        {
+            _currentHealth = stats.maxHealth;
+            _currentMana = stats.maxMana; // Initialize currentMana
+        }
 
         // Initialize Modules
         // characterSkills.Initialize(GetName()); // REMOVED
@@ -279,6 +285,7 @@ public class Character : MonoBehaviour
     public float GetCritChance() => characterBuffs.GetModifiedStatValue(StatType.CritChance, Stats.criticalChance / 100f);
     public int GetSpeed() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.Speed, Stats.speed));
     public int GetMaxHealth() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MaxHealth, Stats.maxHealth));
+    public int GetMaxMana() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MaxMana, Stats.maxMana)); // Add this line
 
     public void TakeDamage(int amount)
     {
@@ -300,6 +307,34 @@ public class Character : MonoBehaviour
             Debug.Log($"[CHARACTER] {GetName()} revived! Transitioning to IdleState.");
             stateMachine.ChangeState(new IdleState(this));
         }
+    }
+
+    public bool HasEnoughMana(int manaCost)
+    {
+        return _currentMana >= manaCost;
+    }
+
+    public void SpendMana(int manaCost)
+    {
+        if (manaCost <= 0) return;
+        if (HasEnoughMana(manaCost))
+        {
+            int oldMana = _currentMana;
+            _currentMana -= manaCost;
+            Debug.Log($"[CHARACTER] {GetName()} spent {manaCost} mana. Mana: {oldMana} -> {_currentMana}");
+        }
+        else
+        {
+            Debug.LogWarning($"[CHARACTER] {GetName()} attempted to spend {manaCost} mana, but only has {_currentMana}. Mana not spent.");
+        }
+    }
+
+    public void RestoreMana(int amount)
+    {
+        if (amount <= 0) return;
+        int oldMana = _currentMana;
+        _currentMana = Mathf.Min(_currentMana + amount, GetMaxMana());
+        Debug.Log($"[CHARACTER] {GetName()} restored {amount} mana. Mana: {oldMana} -> {_currentMana}");
     }
     
     public void ApplyDefenseStance()

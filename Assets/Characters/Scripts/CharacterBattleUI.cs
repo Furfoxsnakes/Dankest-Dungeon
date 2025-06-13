@@ -9,13 +9,6 @@ public class CharacterBattleUI : MonoBehaviour
     [SerializeField] private Slider manaSlider; // Assuming you'll add a mana slider
 	[SerializeField] private Character character;
 
-    private Camera mainCamera;
-
-    void Awake()
-    {
-        mainCamera = Camera.main;
-    }
-
     void LateUpdate()
     {
         if (character == null || !character.IsAlive)
@@ -31,13 +24,6 @@ public class CharacterBattleUI : MonoBehaviour
 
         UpdateHealthBar();
         UpdateManaBar(); // You'll need to implement mana logic in Character and CharacterStats
-
-        // Make the UI face the camera
-        // if (mainCamera != null)
-        // {
-        //     transform.LookAt(transform.position + mainCamera.transform.rotation * Vector3.forward,
-        //                      mainCamera.transform.rotation * Vector3.up);
-        // }
     }
 
     public void UpdateHealthBar()
@@ -53,11 +39,11 @@ public class CharacterBattleUI : MonoBehaviour
     {
         // TODO: Implement mana logic
         // Example:
-        // if (character != null && manaSlider != null && character.Stats != null)
-        // {
-        //     float manaPercent = (float)character.CurrentMana / character.Stats.maxMana; // Assuming CurrentMana and maxMana exist
-        //     manaSlider.value = manaPercent;
-        // }
-        if (manaSlider != null) manaSlider.gameObject.SetActive(false); // Hide if not implemented
+        if (character != null && manaSlider != null && character.Stats != null)
+        {
+            float manaPercent = (float)character.CurrentMana / character.Stats.maxMana; // Assuming CurrentMana and maxMana exist
+            manaSlider.value = manaPercent;
+        }
+        // if (manaSlider != null) manaSlider.gameObject.SetActive(false); // Hide if not implemented
     }
 }

@@ -1,353 +1,447 @@
 using UnityEngine;
-using UnityEngine.UI; // Required for Button
-using UnityEngine.EventSystems; // Required for EventSystem
-using UnityEngine.InputSystem;
-using GameInput; // Assuming your PlayerControls is in this namespace
-using System.Collections.Generic; // For List
+using UnityEngine.UI;
+using System.Collections.Generic;
 using DankestDungeon.Skills;
-using System;   // For SkillDefinitionSO
-using DamageNumbersPro;
+using System;
+using TMPro;
+using UnityEngine.EventSystems;
+using DamageNumbersPro; 
+using System.Linq; // Added for Linq operations like FirstOrDefault
 
+// Placed here or in a separate file
+[System.Serializable]
+public struct ElementalColorMapping
+{
+    public ElementType elementType;
+    public Color color;
+}
 
 public class BattleUI : MonoBehaviour
 {
-    [Header("References")]
-    [SerializeField] private BattleManager battleManager; // Assign in Inspector
-    [SerializeField] private InputManager inputManager; // Assign in Inspector or it will try to find Instance
+    [Header("Skill Button UI")]
+    [SerializeField] private GameObject skillButtonContainer; 
+    [SerializeField] private GameObject skillButtonPrefab; 
 
-    [Header("World Space Elements")]
-    [SerializeField] private GameObject worldSpaceIndicator; // This will be used for both active character and target
-    [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.5f, 0f);
+    [Header("Indicators")]
+    [SerializeField] private TextMeshProUGUI activeCharacterNameText;
+    [SerializeField] private GameObject targetIndicatorObject; 
+    [SerializeField] private float activeCharacterIndicatorYOffset = 2.0f; 
 
-    [Header("Screen Space UI Elements")]
-    [SerializeField] private Canvas battleUICanvas;
-    [SerializeField] private GameObject actionButtonsPanel; // Panel containing your action buttons
-    [SerializeField] private GameObject partyInfoPanel;
-    [SerializeField] private DamageNumber NormalHitDamageNumberPrefab; // Using DamageNumberPro asset
-    [SerializeField] private Vector3 damageNumberOffset = new Vector3(0, 0.1f, 0); // New SerializedField for offset
+    [Header("Damage Numbers Prefabs")]
+    [SerializeField] private DamageNumber defaultDamageNumberPrefab; // Renamed for clarity
+    [SerializeField] private DamageNumber criticalDamageNumberPrefab;
+    [SerializeField] private DamageNumber criticalHealNumberPrefab;
+    [SerializeField] private DamageNumber missNumberPrefab;
+    [SerializeField] private DamageNumber dodgeNumberPrefab;
+    [SerializeField] private DamageNumber blockNumberPrefab;
+    [SerializeField] private Vector3 damageNumberWorldOffset = new Vector3(0, 1.5f, 0);
 
-    [Header("Action Buttons")]
-    [SerializeField] private GameObject actionButtonPrefab; // Assign your ActionButton prefab
-    [SerializeField] private Transform actionButtonsContainer; // Parent where buttons will be instantiated (e.g., actionButtonsPanel itself or a child LayoutGroup)
+    [Header("Damage Numbers Colors")]
+    [SerializeField] private List<ElementalColorMapping> elementalTypeColors = new List<ElementalColorMapping>();
+    [SerializeField] private Color normalDamageColor = Color.white;
+    [SerializeField] private Color defaultCritColor = Color.yellow; // Used if crit prefab doesn't define its own strong color
+    [SerializeField] private Color healColor = Color.green;
+    [SerializeField] private Color defaultCritHealColor = new Color(0.2f, 1f, 0.5f);
+    [SerializeField] private Color statusEffectDamageColor = new Color(0.6f, 0.2f, 0.8f); // Purple
+    [SerializeField] private Color statusEffectHealColor = new Color(0.4f, 0.8f, 0.4f); // Muted green
+    [SerializeField] private Color defaultMissColor = Color.grey;
+    [SerializeField] private Color defaultDodgeColor = new Color(0.5f, 0.8f, 1f); 
+    [SerializeField] private Color defaultBlockColor = new Color(0.3f, 0.5f, 0.9f);
+    [SerializeField] private Color defaultTextColor = Color.white; // Fallback for text popups if no other color is set
 
-    private Character currentCharacterForIndicator; // Renamed for clarity, this is what the indicator follows
-    private PlayerControls playerControls;
-    private Camera battleCamera;
-
-    private List<GameObject> _instantiatedActionButtons = new List<GameObject>();
-
-    // Enum to differentiate damage/heal types for future styling
-    public enum DamageNumberType
-    {
-        NormalDamage,
-        CriticalDamage,
-        Heal,
-        StatusEffect
-        // Add more as needed
-    }
 
     void Awake()
     {
-        playerControls = new PlayerControls();
-        battleCamera = Camera.main;
-
-        if (actionButtonsContainer == null && actionButtonsPanel != null)
+        if (skillButtonContainer != null)
         {
-            actionButtonsContainer = actionButtonsPanel.transform; // Default to panel itself
+            skillButtonContainer.SetActive(false); 
         }
-        if (actionButtonsPanel != null) actionButtonsPanel.SetActive(false);
-        
-        // Ensure the single indicator is hidden initially and not following anyone
-        if (worldSpaceIndicator != null)
+        else
         {
-            worldSpaceIndicator.SetActive(false);
+            Debug.LogError("[BattleUI] SkillButtonContainer is not assigned in the Inspector.");
         }
-        currentCharacterForIndicator = null;
 
-        // Assign button listeners (if not done in Inspector)
-        // if (attackButton != null) attackButton.onClick.AddListener(OnAttackButtonPressed);
-        // if (defendButton != null) defendButton.onClick.AddListener(OnDefendButtonPressed);
-        // if (itemButton != null) itemButton.onClick.AddListener(OnItemButtonPressed);
-
-        if (inputManager == null)
+        if (skillButtonPrefab == null) 
         {
-            inputManager = InputManager.Instance;
-            if (inputManager == null) Debug.LogError("InputManager instance not found for BattleUI.");
+            Debug.LogError("[BattleUI] SkillButtonPrefab is not assigned in the Inspector. Cannot create skill buttons.");
         }
-    }
 
-    void Start()
-    {
-        if (battleManager == null)
-            battleManager = FindFirstObjectByType<BattleManager>();
-        if (battleManager == null) Debug.LogError("BattleManager not found for BattleUI.");
+        if (activeCharacterNameText != null)
+        {
+            activeCharacterNameText.gameObject.SetActive(false);
+        }
+
+        if (targetIndicatorObject != null) 
+        {
+            targetIndicatorObject.SetActive(false); 
+        }
+        else 
+        {
+            Debug.LogWarning("[BattleUI] TargetIndicatorObject is not assigned in the Inspector. Target indication will not work.");
+        }
+
+        if (defaultDamageNumberPrefab == null) 
+        {
+            Debug.LogError("[BattleUI] DefaultDamageNumberPrefab (DamageNumbersPro) is not assigned. This is required for fallback.");
+        }
+        // Optional: Add warnings if specific prefabs are not set, as they will fallback to default.
+        if (criticalDamageNumberPrefab == null) Debug.LogWarning("[BattleUI] CriticalDamageNumberPrefab not set. Will use default prefab for crits.");
+        if (criticalHealNumberPrefab == null) Debug.LogWarning("[BattleUI] CriticalHealNumberPrefab not set. Will use default prefab for crit heals.");
+        if (missNumberPrefab == null) Debug.LogWarning("[BattleUI] MissNumberPrefab not set. Will use default prefab for misses.");
+        if (dodgeNumberPrefab == null) Debug.LogWarning("[BattleUI] DodgeNumberPrefab not set. Will use default prefab for dodges.");
+        if (blockNumberPrefab == null) Debug.LogWarning("[BattleUI] BlockNumberPrefab not set. Will use default prefab for blocks.");
     }
 
     void OnEnable()
     {
-        playerControls.UI.Enable();
-        // playerControls.UI.Cancel.performed += OnCancelButtonPressed;
+        if (InputManager.Instance != null)
+        {
+            InputManager.UIConfirmPerformed += HandleConfirmInput; 
+            InputManager.UICancelPerformed += HandleCancelInput;   
+        }
+        else
+        {
+            Debug.LogError("[BattleUI] InputManager.Instance is null. Cannot subscribe to input events.");
+        }
     }
 
     void OnDisable()
     {
-        // playerControls.UI.Cancel.performed -= OnCancelButtonPressed;
-        playerControls.UI.Disable();
-    }
-
-    void Update()
-    {
-        // If the indicator is active and has a character to follow, update its position
-        if (worldSpaceIndicator != null && worldSpaceIndicator.activeSelf && currentCharacterForIndicator != null)
+        if (InputManager.Instance != null)
         {
-            UpdateIndicatorPosition();
+            InputManager.UIConfirmPerformed -= HandleConfirmInput;
+            InputManager.UICancelPerformed -= HandleCancelInput;
         }
     }
 
-    private void UpdateIndicatorPosition()
+    private void HandleConfirmInput() 
     {
-        // This method now uses currentCharacterForIndicator
-        if (currentCharacterForIndicator != null && worldSpaceIndicator != null)
+        Debug.Log("[BattleUI] Confirm Input (Select/Submit) performed via InputManager.");
+    }
+
+    private void HandleCancelInput()
+    {
+        Debug.Log("[BattleUI] Cancel Input performed via InputManager.");
+    }
+
+    public void ShowSkillButtons(Character character, Action<SkillDefinitionSO> onSkillSelectedCallback)
+    {
+        if (skillButtonContainer == null)
         {
-            worldSpaceIndicator.transform.position = currentCharacterForIndicator.transform.position + indicatorOffset;
+            Debug.LogError("[BattleUI] SkillButtonContainer is not assigned. Cannot show skill buttons.");
+            return;
         }
+        if (skillButtonPrefab == null) 
+        {
+            Debug.LogError("[BattleUI] SkillButtonPrefab is not assigned. Cannot create skill buttons.");
+            skillButtonContainer.SetActive(false);
+            return;
+        }
+
+        Hero hero = character as Hero;
+        if (hero == null)
+        {
+            Debug.LogError($"[BattleUI] Character {character?.GetName()} is not a Hero. Cannot display skills.");
+            HideActionButtons();
+            return;
+        }
+
+        List<SkillDefinitionSO> availableSkills = hero.Skills.GetAvailableSkills();
+
+        if (availableSkills == null)
+        {
+            Debug.LogError($"[BattleUI] GetAvailableSkills() returned null for {hero.GetName()}. Hiding action buttons.");
+            HideActionButtons();
+            return;
+        }
+        
+        foreach (Transform child in skillButtonContainer.transform)
+        {
+            Destroy(child.gameObject);
+        }
+
+        Debug.Log($"[BattleUI] ShowSkillButtons called for {hero.GetName()}. Found {availableSkills.Count} skills. Attempting to activate skillButtonContainer.");
+        skillButtonContainer.SetActive(true);
+
+        if (!skillButtonContainer.activeSelf)
+        {
+            Debug.LogError("[BattleUI] Attempted to activate skillButtonContainer, but it's still inactive. Check if its parent is inactive or if other scripts are deactivating it immediately.");
+        }
+
+        if (availableSkills.Count == 0)
+        {
+            Debug.LogWarning($"[BattleUI] {hero.GetName()} has 0 available skills. Skill panel will be empty.");
+            EventSystem.current.SetSelectedGameObject(null); 
+            return;
+        }
+
+        GameObject firstButtonGameObject = null; 
+
+        for(int i = 0; i < availableSkills.Count; i++)
+        {
+            SkillDefinitionSO skill = availableSkills[i];
+            if (skill == null)
+            {
+                Debug.LogWarning($"[BattleUI] Encountered a null skill in availableSkills for {hero.GetName()}. Skipping.");
+                continue;
+            }
+
+            GameObject buttonGO = Instantiate(skillButtonPrefab, skillButtonContainer.transform);
+            ActionButton actionButton = buttonGO.GetComponent<ActionButton>();
+
+            if (actionButton == null)
+            {
+                Debug.LogError($"[BattleUI] SkillButtonPrefab '{skillButtonPrefab.name}' does not have an ActionButton component. Destroying instance.");
+                Destroy(buttonGO);
+                continue;
+            }
+            
+            actionButton.Setup(skill, onSkillSelectedCallback);
+
+            SkillRankData rankData = hero.Skills.GetSkillRankData(skill);
+            bool canAffordThisSkill = false;
+            if (rankData == null)
+            {
+                Debug.LogError($"[BattleUI] SkillRankData is null for skill {skill.skillNameKey} on {hero.GetName()}. Disabling button.");
+                if (actionButton.button != null) actionButton.button.interactable = false;
+            }
+            else
+            {
+                int manaCost = rankData.manaCost;
+                canAffordThisSkill = hero.CurrentMana >= manaCost;
+                if (actionButton.button != null)
+                {
+                    actionButton.button.interactable = canAffordThisSkill;
+                }
+                else
+                {
+                    Debug.LogWarning($"[BattleUI] ActionButton for skill '{skill.skillNameKey}' does not have its 'button' field assigned. Cannot set interactability.");
+                }
+            }
+
+            if (firstButtonGameObject == null && actionButton.button != null && actionButton.button.interactable)
+            {
+                firstButtonGameObject = actionButton.button.gameObject;
+            }
+        }
+
+        if (firstButtonGameObject != null)
+        {
+            EventSystem.current.SetSelectedGameObject(firstButtonGameObject);
+            Debug.Log($"[BattleUI] First skill button '{firstButtonGameObject.name}' selected.");
+        }
+        else if (availableSkills.Count > 0)
+        {
+             Debug.LogWarning("[BattleUI] No interactable skill buttons found to select as first.");
+             EventSystem.current.SetSelectedGameObject(null); 
+        }
+    }
+
+    public void HideActionButtons()
+    {
+        if (skillButtonContainer != null)
+        {
+            Debug.Log("[BattleUI] Hiding action buttons (skillButtonContainer) and clearing children.");
+            foreach (Transform child in skillButtonContainer.transform) 
+            {
+                Destroy(child.gameObject);
+            }
+            skillButtonContainer.SetActive(false);
+        }
+    }
+    
+    private void PositionAndShowIndicatorObject(Character characterToIndicate)
+    {
+        if (targetIndicatorObject == null)
+        {
+            Debug.LogWarning("[BattleUI] TargetIndicatorObject is not assigned. Cannot show/position indicator.");
+            return;
+        }
+
+        if (characterToIndicate == null)
+        {
+            targetIndicatorObject.SetActive(false); 
+            return;
+        }
+
+        targetIndicatorObject.transform.position = characterToIndicate.transform.position + Vector3.up * activeCharacterIndicatorYOffset;
+        targetIndicatorObject.SetActive(true);
     }
 
     public void ShowActiveCharacterIndicator(Character character)
     {
-        this.currentCharacterForIndicator = character; // Set who the indicator should follow
-        if (worldSpaceIndicator != null)
+        if (character == null)
         {
-            worldSpaceIndicator.SetActive(true);
-            UpdateIndicatorPosition(); // Position it once immediately
+            Debug.LogWarning("[BattleUI] ShowActiveCharacterIndicator called with a null character.");
+            HideActiveCharacterIndicator(); 
+            return;
         }
+
+        if (activeCharacterNameText != null)
+        {
+            activeCharacterNameText.text = $"Active: {character.GetName()}";
+            activeCharacterNameText.gameObject.SetActive(true);
+            Debug.Log($"[BattleUI] Active character name text set for: {character.GetName()}");
+        }
+        
+        PositionAndShowIndicatorObject(character);
+        Debug.Log($"[BattleUI] Active character indicator shown for: {character.GetName()}");
     }
 
     public void HideActiveCharacterIndicator()
     {
-        if (worldSpaceIndicator != null)
+        if (activeCharacterNameText != null)
         {
-            worldSpaceIndicator.SetActive(false);
+            activeCharacterNameText.gameObject.SetActive(false);
         }
-        // Don't nullify currentCharacterForIndicator here if another state (like TargetSelection) might be using it.
-        // Let the state that *sets* the character also be responsible for clearing or hiding.
-        // However, if this is a generic "hide everything related to active char", then nullifying is okay.
-        // For now, let's assume states manage who currentCharacterForIndicator is.
-        // If PlayerTurnState calls this on exit, it's fine.
+        if (targetIndicatorObject != null)
+        {
+            targetIndicatorObject.SetActive(false);
+        }
+        Debug.Log("[BattleUI] Hiding active character indicators (name and targetIndicatorObject).");
     }
 
-    // ---- Modified Target Indicator Methods (now use worldSpaceIndicator) ----
-    public void ShowTargetIndicator(Character targetCharacter)
+    public void ShowTargetIndicator(Character target)
     {
-        this.currentCharacterForIndicator = targetCharacter; // The indicator will now follow this target
-        if (worldSpaceIndicator != null)
+        PositionAndShowIndicatorObject(target); 
+
+        if (target != null)
         {
-            worldSpaceIndicator.SetActive(true);
-            UpdateIndicatorPosition(); // Position it once immediately on the target
+            Debug.Log($"[BattleUI] Target indicator shown on {target.GetName()} with Y offset: {activeCharacterIndicatorYOffset}");
         }
-        else if (worldSpaceIndicator == null) // Corrected from targetIndicator
+        else
         {
-            Debug.LogWarning("worldSpaceIndicator is not assigned in BattleUI.");
+            Debug.Log("[BattleUI] Target indicator hidden (null target).");
         }
     }
 
     public void HideTargetIndicator()
     {
-        // This method simply hides the indicator.
-        // The state transitioning out of target selection (TargetSelectionState.Exit) will call this.
-        // The next state (e.g., PlayerTurnState.Enter or ActionExecutionState.Enter)
-        // will decide if and where the indicator should be shown next.
-        if (worldSpaceIndicator != null)
+        if (targetIndicatorObject != null)
         {
-            worldSpaceIndicator.SetActive(false);
+            targetIndicatorObject.SetActive(false);
         }
-        // We don't necessarily null out currentCharacterForIndicator here,
-        // as the next state will set it if needed.
+        Debug.Log("[BattleUI] Hiding target indicator object.");
     }
-    // ---- End Modified Target Indicator Methods ----
 
-    public void ShowActionButtons(bool show)
+    public void ShowDamageNumber(Character target, int amount, DamageNumberType type, ElementType elementType = ElementType.Physical)
     {
-        if (actionButtonsPanel == null) return;
+        Debug.LogWarning($"[BattleUI.ShowDamageNumber ENTRY] Target: {(target ? target.name : "NULL")}, Amount: {amount}, Type: {type}, Element: {elementType}");
 
-        actionButtonsPanel.SetActive(show);
-        if (show)
+        if (defaultDamageNumberPrefab == null) // Check the default prefab first
         {
-            if (_instantiatedActionButtons.Count > 0)
+            Debug.LogError("[BattleUI] DefaultDamageNumberPrefab (DamageNumbersPro) is not assigned. Cannot show damage numbers.");
+            return;
+        }
+        if (target == null)
+        {
+            Debug.LogError("[BattleUI] Target is null. Cannot show damage number.");
+            return;
+        }
+
+        Vector3 spawnPosition = target.transform.position + damageNumberWorldOffset;
+        DamageNumber prefabToUse = defaultDamageNumberPrefab;
+        DamageNumber spawnedNumber = null;
+        string displayText = ""; 
+        bool isTextPopup = false;
+
+        // 1. Select Prefab based on DamageNumberType
+        switch (type)
+        {
+            case DamageNumberType.CriticalDamage:
+                prefabToUse = criticalDamageNumberPrefab != null ? criticalDamageNumberPrefab : defaultDamageNumberPrefab;
+                break;
+            case DamageNumberType.CriticalHeal:
+                prefabToUse = criticalHealNumberPrefab != null ? criticalHealNumberPrefab : defaultDamageNumberPrefab;
+                break;
+            case DamageNumberType.Miss:
+                prefabToUse = missNumberPrefab != null ? missNumberPrefab : defaultDamageNumberPrefab;
+                displayText = "Miss";
+                isTextPopup = true;
+                break;
+            case DamageNumberType.Dodge:
+                prefabToUse = dodgeNumberPrefab != null ? dodgeNumberPrefab : defaultDamageNumberPrefab;
+                displayText = "Dodge";
+                isTextPopup = true;
+                break;
+            case DamageNumberType.Block:
+                prefabToUse = blockNumberPrefab != null ? blockNumberPrefab : defaultDamageNumberPrefab;
+                displayText = "Block";
+                isTextPopup = true;
+                break;
+            // For other types, we'll use defaultDamageNumberPrefab
+        }
+
+        // 2. Determine Color
+        Color chosenColor = defaultTextColor; // Fallback for text or uncolored numbers
+
+        // Attempt to get elemental color first
+        ElementalColorMapping elementalMapping = elementalTypeColors.FirstOrDefault(ec => ec.elementType == elementType);
+        bool elementalColorFound = elementalMapping.elementType == elementType; // Check if a mapping was actually found
+
+        if (elementalColorFound && elementType != ElementType.Physical && elementType != ElementType.Healing) // Don't override physical/healing with elemental if they have specific type colors
+        {
+            chosenColor = elementalMapping.color;
+        }
+        else // Fallback to type-based colors if no specific elemental color or if it's Physical/Healing
+        {
+            switch (type)
             {
-                EventSystem.current.SetSelectedGameObject(null); // Deselect any current selection
-                EventSystem.current.SetSelectedGameObject(_instantiatedActionButtons[0]); // Select the first button
+                case DamageNumberType.NormalDamage:
+                case DamageNumberType.StatusEffectDamage: // Can share color or have its own
+                    chosenColor = elementalColorFound && elementType == ElementType.Physical ? elementalMapping.color : // Use physical elemental color if set
+                                  (type == DamageNumberType.StatusEffectDamage ? statusEffectDamageColor : normalDamageColor);
+                    break;
+                case DamageNumberType.CriticalDamage:
+                     chosenColor = elementalColorFound ? elementalMapping.color : defaultCritColor;
+                    break;
+                case DamageNumberType.Heal:
+                case DamageNumberType.StatusEffectHeal:
+                     chosenColor = elementalColorFound && elementType == ElementType.Healing ? elementalMapping.color : // Use healing elemental color if set
+                                  (type == DamageNumberType.StatusEffectHeal ? statusEffectHealColor : healColor);
+                    break;
+                case DamageNumberType.CriticalHeal:
+                    chosenColor = elementalColorFound && elementType == ElementType.Healing ? elementalMapping.color : defaultCritHealColor;
+                    break;
+                case DamageNumberType.Miss:
+                    chosenColor = defaultMissColor;
+                    break;
+                case DamageNumberType.Dodge:
+                    chosenColor = defaultDodgeColor;
+                    break;
+                case DamageNumberType.Block:
+                    chosenColor = defaultBlockColor;
+                    break;
             }
+        }
+
+
+        // 3. Spawn the number/text
+        if (isTextPopup)
+        {
+            spawnedNumber = prefabToUse.Spawn(spawnPosition, displayText);
         }
         else
         {
-            EventSystem.current.SetSelectedGameObject(null); 
-        }
-    }
-
-    // New method to show skill buttons, now specifically for Hero
-    public void ShowSkillButtons(Hero heroCharacter, Action<SkillDefinitionSO> onSkillSelectedCallback)
-    {
-        if (actionButtonsPanel == null || actionButtonPrefab == null || actionButtonsContainer == null)
-        {
-            Debug.LogError("BattleUI is missing references for action buttons panel, prefab, or container.");
-            return;
+            spawnedNumber = prefabToUse.Spawn(spawnPosition, amount);
         }
 
-        ClearActionButtons(); // Clear previous buttons
-
-        if (heroCharacter == null)
+        // 4. Apply Color and Log
+        if (spawnedNumber != null)
         {
-            Debug.LogWarning("ShowSkillButtons called with a null heroCharacter.");
-            actionButtonsPanel.SetActive(false);
-            return;
-        }
-
-        // No need to cast or check type anymore, we know it's a Hero
-        var learnedSkills = heroCharacter.LearnedSkills; // Access LearnedSkills directly
-        if (learnedSkills.Count == 0)
-        {
-            Debug.Log($"{heroCharacter.GetName()} has no learned skills.");
-            actionButtonsPanel.SetActive(false);
-            // Optionally, show a "Pass" or "Basic Attack" button here
-            return;
-        }
-
-        actionButtonsPanel.SetActive(true);
-        bool firstButton = true;
-
-        foreach (var skillEntry in learnedSkills)
-        {
-            SkillDefinitionSO skillDef = skillEntry.Key;
-            // TODO: Add checks here: Can the character use this skill from their current rank? Enough mana? Cooldown?
-            // For now, we display all learned skills.
-
-            GameObject buttonGO = Instantiate(actionButtonPrefab, actionButtonsContainer);
-            ActionButton buttonUI = buttonGO.GetComponent<ActionButton>();
-
-            if (buttonUI != null)
+            spawnedNumber.SetColor(chosenColor);
+            if (isTextPopup)
             {
-                buttonUI.Setup(skillDef, onSkillSelectedCallback);
-                _instantiatedActionButtons.Add(buttonGO);
-
-                if (firstButton && buttonGO.GetComponent<Button>() != null)
-                {
-                    EventSystem.current.SetSelectedGameObject(null); // Deselect first
-                    EventSystem.current.SetSelectedGameObject(buttonGO); // Select the first skill button
-                    firstButton = false;
-                }
+                 Debug.Log($"[BattleUI] Spawned DNP Text: '{displayText}' (Type: {type}, Element: {elementType}) on {target.GetName()} with prefab '{prefabToUse.name}' and color {chosenColor}");
             }
             else
             {
-                Debug.LogError("ActionButton prefab is missing the ActionButtonUI script.", buttonGO);
-                Destroy(buttonGO);
-            }
-        }
-        if (_instantiatedActionButtons.Count == 0)
-        {
-             actionButtonsPanel.SetActive(false); // Hide panel if no valid skills were added
-        }
-        // The 'else' block for non-Hero characters is no longer needed.
-    }
-
-    public void HideActionButtons()
-    {
-        if (actionButtonsPanel != null)
-        {
-            actionButtonsPanel.SetActive(false);
-        }
-        ClearActionButtons();
-        if (EventSystem.current != null) // Check if EventSystem still exists (e.g. during scene changes)
-        {
-            EventSystem.current.SetSelectedGameObject(null);
-        }
-    }
-
-    private void ClearActionButtons()
-    {
-        foreach (GameObject btn in _instantiatedActionButtons)
-        {
-            Destroy(btn);
-        }
-        _instantiatedActionButtons.Clear();
-    }
-
-    // These methods might be deprecated or changed if all actions are skills
-    public void OnAttackButtonPressed()
-    {
-        // This would now likely be a specific "Attack" skill
-        // battleManager?.PlayerSelectedActionType(ActionType.Attack); 
-        Debug.LogWarning("OnAttackButtonPressed is likely deprecated. Use skill system.");
-    }
-
-    public void OnDefendButtonPressed()
-    {
-        // This could be a specific "Defend" skill
-        // battleManager?.PlayerSelectedActionType(ActionType.Defend);
-        Debug.LogWarning("OnDefendButtonPressed is likely deprecated. Use skill system.");
-    }
-
-    private void OnCancelButtonPressed(InputAction.CallbackContext context)
-    {
-        if (actionButtonsPanel != null && actionButtonsPanel.activeSelf)
-        {
-            Debug.Log("BattleUI: Cancel button pressed while action buttons active, hiding them.");
-            ShowActionButtons(false); 
-            // Consider if this should also signal BattleManager to return to a previous step in PlayerTurnState,
-            // e.g., if there was a "main menu" before action buttons.
-            // For now, it just hides the buttons. PlayerTurnState's cancel logic (if any) would handle state changes.
-        }
-        // Note: TargetSelectionState has its own Cancel handling. This one is for the action button panel.
-    }
-
-    // ---- New Method to Show Damage Numbers ----
-    public void ShowDamageNumber(Character target, int amount, DamageNumberType type = DamageNumberType.NormalDamage)
-    {
-        if (target == null)
-        {
-            Debug.LogWarning("ShowDamageNumber called with a null target.");
-            return;
-        }
-
-        if (NormalHitDamageNumberPrefab == null)
-        {
-            Debug.LogError("NormalHitDamageNumberPrefab is not assigned in BattleUI.");
-            return;
-        }
-
-        // Determine which prefab to use based on type (for future expansion)
-        var prefabToSpawn = NormalHitDamageNumberPrefab; // Default
-        // TODO: Add logic to select different prefabs or apply different settings based on 'type'
-        // e.g., if (type == DamageNumberType.CriticalDamage && CriticalHitDamageNumberPrefab != null) prefabToSpawn = CriticalHitDamageNumberPrefab;
-
-        if (prefabToSpawn != null)
-        {
-            Debug.Log($"Spawning damage number for target {target.GetName()} with amount {amount} and type {type}.");
-            // DamageNumbersPro typically requires you to call Spawn on the prefab instance.
-            // The Spawn method usually takes a position and the number.
-            // Adjust the spawn position if needed (e.g., above the target's head)
-            Vector3 spawnPosition = target.transform.position + damageNumberOffset; // Use the serialized field
-
-            // Spawn the damage number using DamageNumbersPro's API
-            // The exact method might vary based on DamageNumbersPro version,
-            // but it's commonly prefab.Spawn(position, number) or similar.
-            var spawnedNumber = prefabToSpawn.Spawn(spawnPosition, amount);
-
-            // You can further customize the spawnedNumber instance here if needed,
-            // for example, setting color based on 'type' if the prefab supports it directly
-            // or if you have a script on the prefab to handle this.
-            // e.g., if (type == DamageNumberType.Heal) spawnedNumber.SetColor(Color.green);
-            // This depends heavily on how your DamageNumberGUI prefab and DamageNumbersPro are set up.
-
-            if (spawnedNumber == null)
-            {
-                Debug.LogError($"Failed to spawn damage number for target {target.GetName()} with amount {amount}. Check DamageNumbersPro setup.");
+                 Debug.Log($"[BattleUI] Spawned DNP Number: {amount} (Type: {type}, Element: {elementType}) on {target.GetName()} with prefab '{prefabToUse.name}' and color {chosenColor}");
             }
         }
         else
         {
-            Debug.LogError($"Prefab for DamageNumberType '{type}' is not available.");
+            Debug.LogError($"[BattleUI] Failed to spawn DamageNumberPro for type {type}, element {elementType} on {target.GetName()} using prefab '{prefabToUse.name}'.");
         }
     }
-    // ---- End New Method ----
 }

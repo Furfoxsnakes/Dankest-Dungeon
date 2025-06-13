@@ -53,12 +53,12 @@ namespace DankestDungeon.Skills
         [BoxGroup("Targeting & Usage")]
         [Tooltip("Which party positions can this skill be used FROM? (1-4)")]
         [ListDrawerSettings(ShowFoldout = false, AddCopiesLastElement = true)]
-        public List<int> launchPositions = new List<int>() {1,2,3,4}; // Default to all
+        public List<int> launchPositions = new List<int>() {0,1,2,3}; // Default to all
 
         [BoxGroup("Targeting & Usage")]
         [Tooltip("Which enemy/ally positions can this skill TARGET? (1-4)")]
         [ListDrawerSettings(ShowFoldout = false, AddCopiesLastElement = true)]
-        public List<int> targetPositions = new List<int>() {1,2,3,4}; // Default to all
+        public List<int> targetPositions = new List<int>() {0,1,2,3}; // Default to all
 
         [Title("Skill Ranks", titleAlignment: TitleAlignments.Centered)]
         [ListDrawerSettings(NumberOfItemsPerPage = 1, DraggableItems = true, ShowFoldout = true, ShowIndexLabels = true)]

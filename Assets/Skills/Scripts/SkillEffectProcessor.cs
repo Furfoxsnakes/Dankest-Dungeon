@@ -163,8 +163,9 @@ public class SkillEffectProcessor : MonoBehaviour
 
         if (_battleUI != null)
         {
-            BattleUI.DamageNumberType type = damageResult.isCrit ? BattleUI.DamageNumberType.CriticalDamage : BattleUI.DamageNumberType.NormalDamage;
-            _battleUI.ShowDamageNumber(target, damageResult.finalDamage, type);
+            DamageNumberType type = damageResult.isCrit ? DamageNumberType.CriticalDamage : DamageNumberType.NormalDamage;
+            // Pass the elementType from damageResult
+            _battleUI.ShowDamageNumber(target, damageResult.finalDamage, type, damageResult.elementType); 
         }
         else
         {
@@ -184,10 +185,9 @@ public class SkillEffectProcessor : MonoBehaviour
 
         if (_battleUI != null)
         {
-            BattleUI.DamageNumberType type = BattleUI.DamageNumberType.Heal;
-            // If you add a specific CriticalHeal type:
-            // BattleUI.DamageNumberType type = healResult.isCrit ? BattleUI.DamageNumberType.CriticalHeal : BattleUI.DamageNumberType.Heal;
-            _battleUI.ShowDamageNumber(target, healResult.finalHeal, type);
+            DamageNumberType type = healResult.isCrit ? DamageNumberType.CriticalHeal : DamageNumberType.Heal;
+            // Pass the elementType from healResult
+            _battleUI.ShowDamageNumber(target, healResult.finalHeal, type, healResult.elementType); 
         }
         else
         {
@@ -204,7 +204,7 @@ public class SkillEffectProcessor : MonoBehaviour
         }
 
         StatusEffectSO definition = statusEffect.Definition;
-        float tickPotency = statusEffect.Potency; // This is the calculated per-tick magnitude
+        float tickPotency = statusEffect.Potency; 
         ElementType elementType = statusEffect.EffectElementType; // Element of the status effect's tick.
 
         switch (definition.tickEffectType)
@@ -212,30 +212,25 @@ public class SkillEffectProcessor : MonoBehaviour
             case StatusEffectTickType.DamageOverTime:
                 int damageToApply = Mathf.Max(minimumDamage, Mathf.RoundToInt(tickPotency));
                 
-                // Note: Defense/Resistance is typically applied when the DoT potency is initially calculated
-                // or it's assumed the tickPotency already accounts for it if it's 'true' damage.
-                // If DoT ticks should be re-evaluated against current defenses each tick, that logic would go here.
-                // For now, we assume tickPotency is the final damage for the tick.
-                
                 target.TakeDamage(damageToApply);
                 Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' (Tick) dealt {damageToApply} {elementType} damage to {target.GetName()}. Potency: {tickPotency}");
 
                 if (_battleUI != null)
                 {
-                    // Consider a specific BattleUI.DamageNumberType for status effect damage if desired
-                    _battleUI.ShowDamageNumber(target, damageToApply, BattleUI.DamageNumberType.NormalDamage); // Or a new type e.g., StatusEffectDamage
+                    // Pass the elementType for status effect damage
+                    _battleUI.ShowDamageNumber(target, damageToApply, DamageNumberType.StatusEffectDamage, elementType); 
                 }
                 break;
 
             case StatusEffectTickType.HealOverTime:
-                int healToApply = Mathf.Max(0, Mathf.RoundToInt(tickPotency)); // Healing shouldn't be negative.
+                int healToApply = Mathf.Max(0, Mathf.RoundToInt(tickPotency)); 
                 target.HealDamage(healToApply);
                 Debug.Log($"[SKILL PROCESSOR] Status '{definition.statusNameKey}' (Tick) healed {healToApply} HP for {target.GetName()}. Potency: {tickPotency}");
 
                 if (_battleUI != null)
                 {
-                    // Consider a specific BattleUI.DamageNumberType for status effect healing
-                    _battleUI.ShowDamageNumber(target, healToApply, BattleUI.DamageNumberType.Heal); // Or a new type e.g., StatusEffectHeal
+                    // Pass the elementType for status effect healing
+                    _battleUI.ShowDamageNumber(target, healToApply, DamageNumberType.StatusEffectHeal, elementType); 
                 }
                 break;
 

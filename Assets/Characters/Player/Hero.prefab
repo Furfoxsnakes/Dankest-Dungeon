@@ -181,6 +181,8 @@ MonoBehaviour:
       rank: 1
     - skill: {fileID: 11400000, guid: 85f72e5a322cbfd409aaf7efd11e9322, type: 2}
       rank: 1
+    - skill: {fileID: 11400000, guid: a78ad6b1f8bc67c4ea048516c15b0a00, type: 2}
+      rank: 1
     skillToAdd: {fileID: 0}
     rankToAdd: 1
     skillToRemove: {fileID: 0}

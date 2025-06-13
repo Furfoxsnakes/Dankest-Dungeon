@@ -8,6 +8,7 @@ public class CharacterStats : ScriptableObject
     
     [Header("Base Stats")]
     public int maxHealth = 100;
+    public int maxMana = 50; // Add this line
     public int attackPower = 10;
     public int defense = 5;
     

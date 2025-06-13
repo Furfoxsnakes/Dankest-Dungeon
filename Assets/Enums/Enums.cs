@@ -82,20 +82,19 @@ public enum SkillEffectType
 
 public enum StatType
 {
-    None,
     Health,
-    Mana,
-    Stamina,
+    MaxHealth,
+    Mana,       // Current mana, if you want to modify it directly
+    MaxMana,    // Add this for maximum mana
     AttackPower,
     Defense,
     MagicPower,
     MagicResistance,
     Speed,
     CritChance,
-    MaxHealth,
     Accuracy,
     Dodge,
-    // ... other stat types
+    None
 }
 public enum RowCategory
 {
@@ -158,4 +157,18 @@ public enum AnimationTriggerName
     // --- UI/Other ---
     // Show,
     // Hide
+}
+
+// Add this enum
+public enum DamageNumberType
+{
+    NormalDamage,
+    CriticalDamage,
+    Heal,
+    CriticalHeal,
+    StatusEffectDamage,
+    StatusEffectHeal,
+    Miss,
+    Dodge,
+    Block
 }

@@ -17,7 +17,7 @@ MonoBehaviour:
   editorBaseDescriptionPreview: Lobs a fireball at the target, doing damage and setting
     the target on fire.
   icon: {fileID: -6207678008644054968, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
-  animationType: 1
+  animationTrigger: 2
   targetType: 5
   launchPositions: 00000000010000000200000003000000
   targetPositions: 00000000010000000200000003000000
@@ -25,7 +25,7 @@ MonoBehaviour:
   - rankLevel: 1
     rankDescriptionKey: 
     editorDescriptionPreview: 
-    manaCost: 0
+    manaCost: 15
     cooldown: 0
     accuracyMod: 0
     critMod: 0

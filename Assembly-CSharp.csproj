@@ -88,8 +88,8 @@
     <Compile Include="Assets\Battle\Scripts\TargettingSystem.cs" />
     <Compile Include="Assets\Battle\Scripts\StatusEffects.cs" />
     <Compile Include="Assets\UI\InventoryUI.cs" />
-    <Compile Include="Assets\Scripts\Core\GameManager.cs" />
     <Compile Include="Assets\Characters\Scripts\CharacterBattleUI.cs" />
+    <Compile Include="Assets\Scripts\Core\GameManager.cs" />
     <Compile Include="Assets\PlayerControls.cs" />
     <Compile Include="Assets\Characters\Scripts\CharacterSkills.cs" />
     <Compile Include="Assets\Scripts\Core\SaveSystem.cs" />

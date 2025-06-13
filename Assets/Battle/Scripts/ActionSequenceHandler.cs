@@ -306,6 +306,19 @@ public class ActionSequenceHandler : MonoBehaviour
         // Log with resolvedTargets.Count and the primaryTargetForAnim
         Debug.Log($"<color=green>[COMBAT] Executing Skill: {skillData.skillNameKey} (Rank {action.SkillRank}) by {actor.GetName()} on {resolvedTargets.Count} target(s). Primary anim target: {(primaryTargetForAnim != null ? primaryTargetForAnim.GetName() : "None")}</color>");
 
+        // Check for Mana Cost
+        int manaCost = action.SkillRank.manaCost; // Assuming manaCost is in SkillRankData
+        if (!actor.HasEnoughMana(manaCost))
+        {
+            Debug.LogWarning($"[COMBAT] {actor.GetName()} does not have enough mana ({actor.CurrentMana}) to cast {skillData.skillNameKey} (Cost: {manaCost}). Skipping skill.");
+            onComplete?.Invoke();
+            _activeSequences--;
+            yield break;
+        }
+
+        // Spend Mana
+        actor.SpendMana(manaCost);
+
         // 1. Actor Animation - uses primaryTargetForAnim for visual focus
         if (skillData.animationTrigger != AnimationTriggerName.None)
         {
