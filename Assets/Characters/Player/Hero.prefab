@@ -83,7 +83,7 @@ SpriteRenderer:
   m_FlipX: 1
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 0.48, y: 0.48}
+  m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -182,6 +182,8 @@ MonoBehaviour:
     - skill: {fileID: 11400000, guid: 85f72e5a322cbfd409aaf7efd11e9322, type: 2}
       rank: 1
     - skill: {fileID: 11400000, guid: a78ad6b1f8bc67c4ea048516c15b0a00, type: 2}
+      rank: 1
+    - skill: {fileID: 11400000, guid: 906a9bbc91279304ca10eba0488fe20a, type: 2}
       rank: 1
     skillToAdd: {fileID: 0}
     rankToAdd: 1

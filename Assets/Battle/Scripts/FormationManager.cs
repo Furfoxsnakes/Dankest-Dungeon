@@ -9,14 +9,15 @@ public class FormationManager : MonoBehaviour
     [SerializeField] private Transform enemyFormationParent;
     
     [Header("Position Settings")]
-    [SerializeField] private float spaceBetweenCharacters = 2.0f; // Increased spacing
-    [SerializeField] private Vector3 heroStartPosition = new Vector3(-8f, 0f, 0f); // Far left
-    [SerializeField] private Vector3 enemyStartPosition = new Vector3(4f, 0f, 0f); // Far right
+    [SerializeField] private float spaceBetweenCharacters = 2.0f;
+    [SerializeField] private Vector3 heroStartPosition = new Vector3(-8f, 0f, 0f); // Far left anchor for player formation
+    [SerializeField] private Vector3 enemyStartPosition = new Vector3(4f, 0f, 0f); // Far left anchor for enemy formation
     
+    private const int MAX_POSITIONS_PER_TEAM = 4; // Assuming 4 ranks (0, 1, 2, 3)
+
     private List<Character> spawnedPlayerCharacters = new List<Character>();
     private List<Character> spawnedEnemyCharacters = new List<Character>();
     
-    // Updated method that takes direct FormationData reference
     public List<Character> SpawnFormation(FormationData formation)
     {
         if (formation == null)
@@ -27,7 +28,6 @@ public class FormationManager : MonoBehaviour
         
         bool isPlayerFormation = formation.formationType == FormationType.PlayerParty;
         
-        // Clear existing characters
         if (isPlayerFormation)
         {
             ClearFormation(spawnedPlayerCharacters);
@@ -41,84 +41,102 @@ public class FormationManager : MonoBehaviour
         
         List<Character> spawnedCharacters = new List<Character>();
         Transform parentTransform = isPlayerFormation ? heroFormationParent : enemyFormationParent;
-        Vector3 startPosition = isPlayerFormation ? heroStartPosition : enemyStartPosition;
+        Vector3 baseStartPosition = isPlayerFormation ? heroStartPosition : enemyStartPosition;
         
-        // Debug formation details
         Debug.Log($"Spawning {(isPlayerFormation ? "Player" : "Enemy")} formation: {formation.name}");
-        Debug.Log($"Start position: {startPosition}, Spacing: {spaceBetweenCharacters}");
+        Debug.Log($"Base start position: {baseStartPosition}, Spacing: {spaceBetweenCharacters}");
         
-        // Track used positions to avoid overlaps
-        HashSet<int> usedPositions = new HashSet<int>();
+        HashSet<int> usedLogicalRanks = new HashSet<int>();
         
-        // If no positions are set in formation, assign sequential positions
         bool needsAutoPositioning = true;
-        foreach (var slot in formation.slots)
+        if (formation.slots.Any(s => s.characterPrefab != null && s.position >= 0 && s.position < MAX_POSITIONS_PER_TEAM))
         {
-            if (slot.characterPrefab != null && slot.position >= 0) // Check if position is explicitly set
-            {
-                // A more robust check would be if any slot has a position > 0,
-                // or if all character-holding slots have position 0.
-                // For simplicity, if any slot has a non-default position, assume manual setup.
-                // This part of the logic might need refinement based on how FormationData is authored.
-                // Let's assume if any slot.position is > 0, it's not pure auto-positioning.
-                // A simple check: if all slot.positions for non-null prefabs are 0, then auto-position.
-                bool allDefaultPositions = true;
-                foreach(var s in formation.slots) {
-                    if (s.characterPrefab != null && s.position != 0) { // Assuming 0 is default/unset for auto
-                        allDefaultPositions = false;
-                        break;
-                    }
+            bool allDefaultOrInvalidPositions = true;
+            foreach(var s in formation.slots) {
+                if (s.characterPrefab != null && s.position >= 0 && s.position < MAX_POSITIONS_PER_TEAM) { 
+                    // A valid, explicitly set position exists
+                    allDefaultOrInvalidPositions = false;
+                    break;
                 }
-                needsAutoPositioning = allDefaultPositions;
-                if (!needsAutoPositioning) break; // Found a non-default position, stop checking
             }
+            needsAutoPositioning = allDefaultOrInvalidPositions;
         }
         
-        // Auto-assign positions if needed
         if (needsAutoPositioning && formation.slots.Any(s => s.characterPrefab != null))
         {
-            Debug.Log("Auto-positioning characters in formation (0-indexed).");
+            Debug.Log("Auto-assigning logical ranks (0-indexed) for characters in formation.");
             int positionCounter = 0;
             foreach (var slot in formation.slots)
             {
                 if (slot.characterPrefab != null)
                 {
-                    slot.position = positionCounter++; // Assigns 0, 1, 2, 3...
+                    if (positionCounter < MAX_POSITIONS_PER_TEAM)
+                    {
+                        slot.position = positionCounter++; // Assigns 0, 1, 2, 3... as logical rank
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Too many characters for auto-positioning in formation {formation.name}. Max is {MAX_POSITIONS_PER_TEAM}. Character {slot.characterPrefab.name} will not be placed by auto-positioner.");
+                        slot.position = -1; // Mark as unpositioned
+                    }
                 }
             }
         }
         
         foreach (var slot in formation.slots)
         {
-            if (slot.characterPrefab == null) continue;
+            if (slot.characterPrefab == null || slot.position < 0 || slot.position >= MAX_POSITIONS_PER_TEAM) continue;
             
-            // Ensure each character has a unique position
-            if (usedPositions.Contains(slot.position))
+            int logicalRank = slot.position; // This is the 0-3 rank (0=front/melee, 3=back/ranged)
+
+            if (usedLogicalRanks.Contains(logicalRank))
             {
-                Debug.LogWarning($"Position {slot.position} already used in formation. Adjusting position.");
-                int newPosition = 0;
-                while (usedPositions.Contains(newPosition))
+                Debug.LogWarning($"Logical rank {logicalRank} already used in formation {formation.name} for {slot.characterPrefab.name}. Finding new rank.");
+                int newRank = 0;
+                while (usedLogicalRanks.Contains(newRank) && newRank < MAX_POSITIONS_PER_TEAM)
                 {
-                    newPosition++;
+                    newRank++;
                 }
-                slot.position = newPosition;
+                if (newRank < MAX_POSITIONS_PER_TEAM)
+                {
+                    logicalRank = newRank;
+                    slot.position = newRank; // Update slot if we changed it
+                }
+                else
+                {
+                    Debug.LogError($"Could not find an empty logical rank for {slot.characterPrefab.name} in formation {formation.name}. Character not spawned.");
+                    continue;
+                }
             }
             
-            usedPositions.Add(slot.position);
+            usedLogicalRanks.Add(logicalRank);
             
-            // Position characters horizontally (left to right)
-            Vector3 position = startPosition + new Vector3(slot.position * spaceBetweenCharacters, 0f, 0f);
+            Vector3 characterWorldPosition;
+
+            if (isPlayerFormation)
+            {
+                // Player: Logical Rank 0 is far right, Logical Rank 3 is far left.
+                // Visual offset from heroStartPosition (left anchor): (MAX_POSITIONS_PER_TEAM - 1 - logicalRank)
+                float xOffset = (MAX_POSITIONS_PER_TEAM - 1 - logicalRank) * spaceBetweenCharacters;
+                characterWorldPosition = baseStartPosition + new Vector3(xOffset, 0f, 0f);
+                // Character.FormationPosition will be logicalRank (0=rightmost, 3=leftmost for player)
+            }
+            else // Enemy Formation
+            {
+                // Enemy: Logical Rank 0 is far left, Logical Rank 3 is far right.
+                // Visual offset from enemyStartPosition (left anchor): logicalRank
+                float xOffset = logicalRank * spaceBetweenCharacters;
+                characterWorldPosition = baseStartPosition + new Vector3(xOffset, 0f, 0f);
+                // Character.FormationPosition will be logicalRank (0=leftmost, 3=rightmost for enemy)
+            }
             
-            // Debug individual character position
-            Debug.Log($"Spawning character {slot.characterPrefab.name} at world pos {position}, formation rank (0-indexed): {slot.position}");
+            Debug.Log($"Spawning character {slot.characterPrefab.name} (Logical Rank: {logicalRank}) at world pos {characterWorldPosition} for {(isPlayerFormation ? "Player" : "Enemy")} team.");
             
-            // Instantiate the appropriate character type
-            Character character = Instantiate(slot.characterPrefab, position, Quaternion.identity, parentTransform);
+            Character character = Instantiate(slot.characterPrefab, characterWorldPosition, Quaternion.identity, parentTransform);
             
-            // Set position data for battle mechanics (0-indexed)
-            character.FormationPosition = slot.position; 
+            // Set FormationPosition (the logical rank 0-3 used for targeting)
+            character.FormationPosition = logicalRank; 
             
-            // Add to appropriate list
             spawnedCharacters.Add(character);
             if (isPlayerFormation)
                 spawnedPlayerCharacters.Add(character);
@@ -138,12 +156,11 @@ public class FormationManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Determines the row category (Front/Back) of a character based on their 0-indexed formation position.
-    /// Assumes a 4-rank system: Positions 0,1 are Front; Positions 2,3 are Back.
-    /// </summary>
     private RowCategory GetRowCategory(int formationPosition)
     {
+        // formationPosition is the logical rank (0-3)
+        // 0,1 are considered "Front" (melee)
+        // 2,3 are considered "Back" (ranged)
         if (formationPosition == 0 || formationPosition == 1)
         {
             return RowCategory.Front;
@@ -152,19 +169,10 @@ public class FormationManager : MonoBehaviour
         {
             return RowCategory.Back;
         }
-        // Fallback for unexpected positions, or if you have more than 4 ranks.
-        // This might indicate an issue with FormationPosition assignment or a different rank system.
-        Debug.LogWarning($"Character is in an undefined row category with FormationPosition: {formationPosition}");
+        Debug.LogWarning($"Character is in an undefined row category with FormationPosition (Logical Rank): {formationPosition}");
         return RowCategory.Unknown;
     }
 
-    /// <summary>
-    /// Gets all characters from the characterPool that are in the same row as the referenceCharacter.
-    /// Assumes Character.FormationPosition is 0-indexed (0,1 = Front; 2,3 = Back).
-    /// </summary>
-    /// <param name="referenceCharacter">The character whose row is used as a reference.</param>
-    /// <param name="characterPool">The list of characters to check against (e.g., all allies or all enemies).</param>
-    /// <returns>A list of characters in the same row as the reference character.</returns>
     public List<Character> GetCharactersInSameRowAs(Character referenceCharacter, List<Character> characterPool)
     {
         List<Character> charactersInRow = new List<Character>();
@@ -172,24 +180,20 @@ public class FormationManager : MonoBehaviour
         if (referenceCharacter == null || !referenceCharacter.IsAlive)
         {
             Debug.LogWarning("GetCharactersInSameRowAs called with a null or dead reference character.");
-            return charactersInRow; // Return empty list
+            return charactersInRow;
         }
 
+        // referenceCharacter.FormationPosition is the logical rank (0-3)
         RowCategory referenceRow = GetRowCategory(referenceCharacter.FormationPosition);
 
         if (referenceRow == RowCategory.Unknown)
         {
-            // This implies the referenceCharacter is not in a standard front/back position.
-            // Depending on game rules, you might want to return just the referenceCharacter if it's in the pool,
-            // or an empty list. For now, returning empty as it's an "unknown" row.
-            Debug.LogWarning($"Reference character {referenceCharacter.GetName()} is in an Unknown row (Position: {referenceCharacter.FormationPosition}). Cannot determine row members.");
+            Debug.LogWarning($"Reference character {referenceCharacter.GetName()} is in an Unknown row (Logical Rank: {referenceCharacter.FormationPosition}). Cannot determine row members.");
             return charactersInRow;
         }
 
         foreach (Character charInPool in characterPool)
         {
-            // The input characterPool might already be filtered for IsAlive().
-            // Adding a check here for robustness of this specific method.
             if (charInPool != null && charInPool.IsAlive) 
             {
                 RowCategory poolCharRow = GetRowCategory(charInPool.FormationPosition);
@@ -202,17 +206,14 @@ public class FormationManager : MonoBehaviour
         return charactersInRow;
     }
 
-    /// <summary>
-    /// Gets the 0-indexed rank/position of a character.
-    /// This is a simple accessor to Character.FormationPosition.
-    /// </summary>
     public int GetCharacterRank(Character character)
     {
         if (character != null)
         {
+            // This returns the logical rank (0-3)
             return character.FormationPosition;
         }
         Debug.LogWarning("Attempted to get rank of a null character. Returning -1.");
-        return -1; // Invalid rank
+        return -1;
     }
 }

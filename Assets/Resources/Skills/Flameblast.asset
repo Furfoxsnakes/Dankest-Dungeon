@@ -10,41 +10,31 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc75f6ac16fa84a4b9a2da18b5ff68f0, type: 3}
-  m_Name: Fireball
+  m_Name: Flameblast
   m_EditorClassIdentifier: 
-  skillId: e38d06ce-a62c-440c-acbf-fc006e5ea598
-  skillNameKey: Fireball
-  editorBaseDescriptionPreview: Lobs a fireball at the target, doing damage and setting
-    the target on fire.
-  icon: {fileID: -6207678008644054968, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
-  animationTrigger: 7
-  targetType: 5
-  launchPositions: 0200000003000000
+  skillId: d9b33d3c-d27a-4ed6-9175-7f1e84953828
+  skillNameKey: Flameblast
+  editorBaseDescriptionPreview: 
+  icon: {fileID: 1475822585318037576, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
+  animationTrigger: 2
+  targetType: 6
+  launchPositions: 00000000010000000200000003000000
   targetPositions: 00000000010000000200000003000000
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
     editorDescriptionPreview: 
-    manaCost: 15
+    manaCost: 30
     cooldown: 0
     accuracyMod: 0
     critMod: 0
     effects:
     - effectType: 0
       elementType: 1
-      baseValue: 3
+      baseValue: 7
       scalingStat: 6
       scalingMultiplier: 1
       duration: 1
-      statToModify: 0
+      statToModify: 12
       statusEffectToApply: {fileID: 0}
-      chance: 1
-    - effectType: 4
-      elementType: 1
-      baseValue: 1
-      scalingStat: 6
-      scalingMultiplier: 1
-      duration: 3
-      statToModify: 0
-      statusEffectToApply: {fileID: 11400000, guid: 134d08035706cb2429df739ebb8596d8, type: 2}
       chance: 1

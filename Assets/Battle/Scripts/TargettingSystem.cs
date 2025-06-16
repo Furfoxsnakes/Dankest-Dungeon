@@ -4,19 +4,17 @@ using DankestDungeon.Characters; // For Character
 using System.Collections.Generic;
 using System.Linq; // For Linq operations like Where, ToList
 
-public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem' if not a MonoBehaviour
+public class TargetingSystem : MonoBehaviour
 {
     private List<Character> _playerTeamCharacters;
     private List<Character> _enemyTeamCharacters;
 
-    // Call this from CombatSystem when teams are set up
     public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
     {
         _playerTeamCharacters = playerTeam;
         _enemyTeamCharacters = enemyTeam;
     }
 
-    // Add this method
     public List<Character> GetValidTargets(Character caster, SkillDefinitionSO skill)
     {
         if (skill == null || caster == null)
@@ -25,9 +23,24 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
             return new List<Character>();
         }
 
-        List<Character> validTargets = new List<Character>();
+        // Character.FormationPosition is the 0-indexed logical rank.
+        // skill.launchPositions and skill.targetPositions are 0-indexed logical ranks.
+        if (caster.FormationPosition < 0 || !skill.launchPositions.Contains(caster.FormationPosition))
+        {
+            // Debug.Log($"[TargetingSystem] Caster {caster.GetName()} at logical rank {caster.FormationPosition} cannot use skill {skill.skillNameKey} from this rank. Valid launch ranks: [{string.Join(",", skill.launchPositions)}]");
+            return new List<Character>(); 
+        }
 
-        // Determine which team is friendly and which is hostile relative to the caster
+        if (skill.targetPositions == null || skill.targetPositions.Count == 0)
+        {
+            if (skill.targetType != SkillTargetType.Self && skill.targetType != SkillTargetType.None)
+            {
+                Debug.LogWarning($"[TargetingSystem] Skill {skill.skillNameKey} has no target ranks defined, but requires targets.");
+                return new List<Character>();
+            }
+        }
+        
+        List<Character> validTargets = new List<Character>();
         bool isCasterPlayer = _playerTeamCharacters.Contains(caster);
         List<Character> friendlyTeam = isCasterPlayer ? _playerTeamCharacters : _enemyTeamCharacters;
         List<Character> hostileTeam = isCasterPlayer ? _enemyTeamCharacters : _playerTeamCharacters;
@@ -35,61 +48,33 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
         switch (skill.targetType)
         {
             case SkillTargetType.Self:
-                if (caster.IsAlive)
-                {
-                    validTargets.Add(caster);
-                }
+                if (caster.IsAlive) validTargets.Add(caster);
                 break;
-
             case SkillTargetType.SingleAlly:
-                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
-                break;
-
-            case SkillTargetType.SingleEnemy:
-                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
-                break;
-
             case SkillTargetType.AllAllies:
-                // For "All" types, TargetSelectionState might not even be entered.
-                // But if it is, or if this method is used elsewhere, it should return all valid allies.
-                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
+            case SkillTargetType.SingleEnemy:
             case SkillTargetType.AllEnemies:
-                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
             case SkillTargetType.AllyRow:
-                // Placeholder: Implement row-based targeting.
-                // You'll need a way to know which row characters are in.
-                // This might involve checking their position in the formationManager.
-                Debug.LogWarning("AllyRow targeting not fully implemented in GetValidTargets.");
-                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive)); // Fallback to all allies for now
+                Debug.LogWarning("AllyRow targeting in GetValidTargets: using targetPositions, full row logic (based on primary target's row) pending.");
+                validTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
             case SkillTargetType.EnemyRow:
-                // Placeholder: Implement row-based targeting.
-                Debug.LogWarning("EnemyRow targeting not fully implemented in GetValidTargets.");
-                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive)); // Fallback to all enemies for now
+                Debug.LogWarning("EnemyRow targeting in GetValidTargets: using targetPositions, full row logic (based on primary target's row) pending.");
+                validTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-            
-            case SkillTargetType.None: // Skills that don't target anyone specifically (e.g. some summons)
-                // No specific targets to select
+            case SkillTargetType.None:
                 break;
-
             default:
                 Debug.LogWarning($"[TargetingSystem] Unhandled SkillTargetType: {skill.targetType} for skill {skill.skillNameKey}");
                 break;
         }
-
-        // Further filtering can be done here, e.g., for skills that can only target characters with specific status effects,
-        // or based on range if you implement that.
-
         return validTargets;
     }
 
-    // You might also have a GetTargetsForSkill method used by ActionSequenceHandler
-    // for AoE skills that don't go through manual selection.
     public List<Character> GetTargetsForSkill(Character caster, SkillDefinitionSO skillDef, List<Character> allPlayers, List<Character> allEnemies)
     {
         if (skillDef == null || caster == null) return new List<Character>();
@@ -99,24 +84,34 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
         List<Character> friendlyTeam = isCasterPlayer ? allPlayers : allEnemies;
         List<Character> hostileTeam = isCasterPlayer ? allEnemies : allPlayers;
 
+        if (skillDef.targetType != SkillTargetType.Self && skillDef.targetType != SkillTargetType.None &&
+            (skillDef.targetPositions == null || skillDef.targetPositions.Count == 0))
+        {
+            Debug.LogWarning($"[TargetingSystem] GetTargetsForSkill: Skill {skillDef.skillNameKey} has no target ranks defined.");
+        }
+
         switch (skillDef.targetType)
         {
             case SkillTargetType.Self:
                 if (caster.IsAlive) resolvedTargets.Add(caster);
                 break;
             case SkillTargetType.AllAllies:
-                resolvedTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                resolvedTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skillDef.targetPositions.Contains(c.FormationPosition)));
                 break;
             case SkillTargetType.AllEnemies:
-                resolvedTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                resolvedTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skillDef.targetPositions.Contains(c.FormationPosition)));
                 break;
             case SkillTargetType.SingleAlly:
             case SkillTargetType.SingleEnemy:
-                // For single-target skills, ActionSequenceHandler should use action.Target.
-                // This method is primarily for resolving targets for AoE, Self, etc.
-                // Returning an empty list here is expected for these cases in this method.
-                break; // No warning, just break and return empty resolvedTargets.
-             // Add other cases like AllyRow, EnemyRow if they are resolved here for AoE application
+                break; 
+            case SkillTargetType.AllyRow:
+                 Debug.LogWarning($"[TargetingSystem] GetTargetsForSkill: AllyRow targeting needs full implementation including target ranks.");
+                 resolvedTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skillDef.targetPositions.Contains(c.FormationPosition))); 
+                 break;
+            case SkillTargetType.EnemyRow:
+                 Debug.LogWarning($"[TargetingSystem] GetTargetsForSkill: EnemyRow targeting needs full implementation including target ranks.");
+                 resolvedTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skillDef.targetPositions.Contains(c.FormationPosition)));
+                 break;
             default:
                 Debug.LogWarning($"[TargetingSystem] GetTargetsForSkill: Unhandled or inappropriate SkillTargetType: {skillDef.targetType}");
                 break;
@@ -132,11 +127,21 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
             Debug.LogError("[TargetingSystem] DetermineFinalTargets called with null skill or caster.");
             return finalTargets;
         }
-
         if (_playerTeamCharacters == null || _enemyTeamCharacters == null)
         {
             Debug.LogError("[TargetingSystem] Teams not initialized. Call InitializeTeams first.");
             return finalTargets;
+        }
+
+        if (caster.FormationPosition < 0 || !skill.launchPositions.Contains(caster.FormationPosition))
+        {
+            // Debug.LogWarning($"[TargetingSystem] DetermineFinalTargets: Caster {caster.GetName()} at logical rank {caster.FormationPosition} cannot use skill {skill.skillNameKey} from this rank.");
+            return finalTargets; 
+        }
+        if (skill.targetType != SkillTargetType.Self && skill.targetType != SkillTargetType.None &&
+            (skill.targetPositions == null || skill.targetPositions.Count == 0))
+        {
+            Debug.LogWarning($"[TargetingSystem] DetermineFinalTargets: Skill {skill.skillNameKey} has no target ranks defined.");
         }
 
         bool isCasterPlayer = _playerTeamCharacters.Contains(caster);
@@ -146,72 +151,64 @@ public class TargetingSystem : MonoBehaviour // Or 'public class TargetingSystem
         switch (skill.targetType)
         {
             case SkillTargetType.Self:
-                if (caster.IsAlive)
-                {
-                    finalTargets.Add(caster);
-                }
+                if (caster.IsAlive) finalTargets.Add(caster);
                 break;
-
             case SkillTargetType.SingleAlly:
-                if (primaryTarget != null && primaryTarget.IsAlive && friendlyTeam.Contains(primaryTarget))
+                if (primaryTarget != null && primaryTarget.IsAlive && friendlyTeam.Contains(primaryTarget) &&
+                    skill.targetPositions.Contains(primaryTarget.FormationPosition))
                 {
                     finalTargets.Add(primaryTarget);
                 }
                 else if (primaryTarget != null)
                 {
-                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleAlly skill {skill.skillNameKey} or target not in friendly team.");
+                    string reason = "";
+                    if (!primaryTarget.IsAlive) reason = "not alive";
+                    else if (!friendlyTeam.Contains(primaryTarget)) reason = "not in friendly team";
+                    else if (primaryTarget.FormationPosition < 0 || !skill.targetPositions.Contains(primaryTarget.FormationPosition)) 
+                        reason = $"not in a valid target rank (rank {primaryTarget.FormationPosition}, valid ranks: [{string.Join(",", skill.targetPositions)}])";
+                    else reason = "unknown";
+                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleAlly skill {skill.skillNameKey}. Reason: {reason}.");
                 }
-                else
-                {
-                     Debug.LogWarning($"[TargetingSystem] Null primary target for SingleAlly skill {skill.skillNameKey}.");
-                }
+                else Debug.LogWarning($"[TargetingSystem] Null primary target for SingleAlly skill {skill.skillNameKey}.");
                 break;
-
             case SkillTargetType.SingleEnemy:
-                if (primaryTarget != null && primaryTarget.IsAlive && hostileTeam.Contains(primaryTarget))
+                if (primaryTarget != null && primaryTarget.IsAlive && hostileTeam.Contains(primaryTarget) &&
+                    skill.targetPositions.Contains(primaryTarget.FormationPosition))
                 {
                     finalTargets.Add(primaryTarget);
                 }
                 else if (primaryTarget != null)
                 {
-                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleEnemy skill {skill.skillNameKey} or target not in hostile team.");
+                    string reason = "";
+                    if (!primaryTarget.IsAlive) reason = "not alive";
+                    else if (!hostileTeam.Contains(primaryTarget)) reason = "not in hostile team";
+                    else if (primaryTarget.FormationPosition < 0 || !skill.targetPositions.Contains(primaryTarget.FormationPosition)) 
+                        reason = $"not in a valid target rank (rank {primaryTarget.FormationPosition}, valid ranks: [{string.Join(",", skill.targetPositions)}])";
+                    else reason = "unknown";
+                    Debug.LogWarning($"[TargetingSystem] Invalid primary target {primaryTarget.GetName()} for SingleEnemy skill {skill.skillNameKey}. Reason: {reason}.");
                 }
-                else
-                {
-                    Debug.LogWarning($"[TargetingSystem] Null primary target for SingleEnemy skill {skill.skillNameKey}.");
-                }
+                else Debug.LogWarning($"[TargetingSystem] Null primary target for SingleEnemy skill {skill.skillNameKey}.");
                 break;
-
             case SkillTargetType.AllAllies:
-                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
             case SkillTargetType.AllEnemies:
-                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
             case SkillTargetType.AllyRow:
-                // Placeholder: Implement actual row targeting logic.
-                // This might involve using the primaryTarget to identify a row, or specific formation data.
-                Debug.LogWarning($"[TargetingSystem] AllyRow targeting in DetermineFinalTargets is not fully implemented. Defaulting to all living allies.");
-                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive));
+                Debug.LogWarning($"[TargetingSystem] AllyRow targeting in DetermineFinalTargets not fully implemented. Defaulting to living allies in valid target ranks.");
+                finalTargets.AddRange(friendlyTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-
             case SkillTargetType.EnemyRow:
-                // Placeholder: Implement actual row targeting logic.
-                Debug.LogWarning($"[TargetingSystem] EnemyRow targeting in DetermineFinalTargets is not fully implemented. Defaulting to all living enemies.");
-                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive));
+                Debug.LogWarning($"[TargetingSystem] EnemyRow targeting in DetermineFinalTargets not fully implemented. Defaulting to living enemies in valid target ranks.");
+                finalTargets.AddRange(hostileTeam.Where(c => c.IsAlive && skill.targetPositions.Contains(c.FormationPosition)));
                 break;
-            
             case SkillTargetType.None:
-                // Skills that don't target anyone specifically.
                 break;
-
             default:
                 Debug.LogWarning($"[TargetingSystem] Unhandled SkillTargetType in DetermineFinalTargets: {skill.targetType} for skill {skill.skillNameKey}");
                 break;
         }
-
         return finalTargets;
     }
 }

@@ -10,16 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bc75f6ac16fa84a4b9a2da18b5ff68f0, type: 3}
-  m_Name: Attack
+  m_Name: Pull
   m_EditorClassIdentifier: 
-  skillId: 3c395de1-9a43-4c5a-a778-ba03fb061df8
-  skillNameKey: Attack
-  editorBaseDescriptionPreview: Perform a melee attack with your equipped weapon.
-  icon: {fileID: 234775221645310603, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
+  skillId: a963cfab-354c-4003-bb53-aba4f5d469df
+  skillNameKey: Pull
+  editorBaseDescriptionPreview: 
+  icon: {fileID: 8326510253161053641, guid: 983d3c337c2cb8a4f82283e8be754352, type: 3}
   animationTrigger: 2
   targetType: 5
   launchPositions: 0000000001000000
-  targetPositions: 0000000001000000
+  targetPositions: 0200000003000000
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
@@ -29,12 +29,20 @@ MonoBehaviour:
     accuracyMod: 0
     critMod: 0
     effects:
-    - effectType: 0
+    - effectType: 6
       elementType: 0
-      baseValue: 1
-      scalingStat: 4
+      baseValue: 0
+      scalingStat: 12
       scalingMultiplier: 1
       duration: 1
-      statToModify: 0
+      statToModify: 12
       statusEffectToApply: {fileID: 0}
       chance: 1
+  - rankLevel: 2
+    rankDescriptionKey: 
+    editorDescriptionPreview: 
+    manaCost: 0
+    cooldown: 0
+    accuracyMod: 0
+    critMod: 0
+    effects: []
