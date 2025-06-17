@@ -18,9 +18,18 @@ public struct ElementalColorMapping
 
 public class BattleUI : MonoBehaviour
 {
+    public static BattleUI Instance { get; private set; }
+
     [Header("Skill Button UI")]
     [SerializeField] private GameObject skillButtonContainer; 
     [SerializeField] private GameObject skillButtonPrefab; 
+
+    [Header("Skill Tooltip UI")]
+    [SerializeField] private GameObject skillTooltipPanel; // Parent GameObject for the tooltip
+    [SerializeField] private TextMeshProUGUI skillTooltipNameText;
+    [SerializeField] private TextMeshProUGUI skillTooltipDescriptionText;
+    [SerializeField] private TextMeshProUGUI skillTooltipManaCostText;
+    // Add other fields like cooldown, accuracy, crit mod if needed
 
     [Header("Indicators")]
     [SerializeField] private TextMeshProUGUI activeCharacterNameText;
@@ -52,6 +61,18 @@ public class BattleUI : MonoBehaviour
 
     void Awake()
     {
+        if (Instance == null)
+        {
+            Instance = this;
+            // Optional: DontDestroyOnLoad(gameObject); // If your BattleUI needs to persist across scene loads, though typically it's scene-specific.
+        }
+        else if (Instance != this)
+        {
+            Debug.LogWarning("[BattleUI] Another instance of BattleUI already exists. Destroying this one.");
+            Destroy(gameObject);
+            return; // Important to return here to prevent further execution of Awake for this duplicate instance
+        }
+
         if (skillButtonContainer != null)
         {
             skillButtonContainer.SetActive(false); 
@@ -90,6 +111,19 @@ public class BattleUI : MonoBehaviour
         if (missNumberPrefab == null) Debug.LogWarning("[BattleUI] MissNumberPrefab not set. Will use default prefab for misses.");
         if (dodgeNumberPrefab == null) Debug.LogWarning("[BattleUI] DodgeNumberPrefab not set. Will use default prefab for dodges.");
         if (blockNumberPrefab == null) Debug.LogWarning("[BattleUI] BlockNumberPrefab not set. Will use default prefab for blocks.");
+
+        // Initialize Skill Tooltip
+        if (skillTooltipPanel != null)
+        {
+            skillTooltipPanel.SetActive(false);
+        }
+        else
+        {
+            Debug.LogWarning("[BattleUI] SkillTooltipPanel is not assigned. Skill tooltips will not be displayed.");
+        }
+        if (skillTooltipNameText == null) Debug.LogWarning("[BattleUI] SkillTooltipNameText is not assigned.");
+        if (skillTooltipDescriptionText == null) Debug.LogWarning("[BattleUI] SkillTooltipDescriptionText is not assigned.");
+        if (skillTooltipManaCostText == null) Debug.LogWarning("[BattleUI] SkillTooltipManaCostText is not assigned.");
     }
 
     void OnEnable()
@@ -162,6 +196,7 @@ public class BattleUI : MonoBehaviour
 
         Debug.Log($"[BattleUI] ShowSkillButtons called for {hero.GetName()}. Found {availableSkills.Count} skills. Attempting to activate skillButtonContainer.");
         skillButtonContainer.SetActive(true);
+        HideSkillTooltip(); // Hide tooltip when repopulating buttons
 
         if (!skillButtonContainer.activeSelf)
         {
@@ -196,7 +231,15 @@ public class BattleUI : MonoBehaviour
                 continue;
             }
             
-            actionButton.Setup(skill, onSkillSelectedCallback);
+            // Pass the hero (caster) to the ActionButton's setup if it needs it for the tooltip
+            actionButton.Setup(skill, onSkillSelectedCallback, hero); 
+
+            // In your ActionButton.cs, you would typically use IPointerEnterHandler/ISelectHandler:
+            // public void OnPointerEnter(PointerEventData eventData) { BattleUI.Instance.ShowSkillTooltip(this.skillDefinition, this.casterHero); }
+            // public void OnSelect(BaseEventData eventData) { BattleUI.Instance.ShowSkillTooltip(this.skillDefinition, this.casterHero); }
+            // public void OnPointerExit(PointerEventData eventData) { BattleUI.Instance.HideSkillTooltip(); }
+            // public void OnDeselect(BaseEventData eventData) { BattleUI.Instance.HideSkillTooltip(); }
+
 
             SkillRankData rankData = hero.Skills.GetSkillRankData(skill);
             bool canAffordThisSkill = false;
@@ -228,6 +271,11 @@ public class BattleUI : MonoBehaviour
         if (firstButtonGameObject != null)
         {
             EventSystem.current.SetSelectedGameObject(firstButtonGameObject);
+            // Potentially show tooltip for the initially selected button here if desired,
+            // though OnSelect should handle it if using EventSystem navigation.
+            // ActionButton selectedActionButton = firstButtonGameObject.GetComponent<ActionButton>();
+            // if (selectedActionButton != null) ShowSkillTooltip(selectedActionButton.skillDefinition, hero);
+
             Debug.Log($"[BattleUI] First skill button '{firstButtonGameObject.name}' selected.");
         }
         else if (availableSkills.Count > 0)
@@ -248,6 +296,7 @@ public class BattleUI : MonoBehaviour
             }
             skillButtonContainer.SetActive(false);
         }
+        HideSkillTooltip(); // Also hide tooltip when action buttons are hidden
     }
     
     private void PositionAndShowIndicatorObject(Character characterToIndicate)
@@ -322,6 +371,70 @@ public class BattleUI : MonoBehaviour
             targetIndicatorObject.SetActive(false);
         }
         Debug.Log("[BattleUI] Hiding target indicator object.");
+    }
+
+    public void ShowSkillTooltip(SkillDefinitionSO skillDefinition, Character caster)
+    {
+        if (skillTooltipPanel == null || skillDefinition == null || caster == null)
+        {
+            HideSkillTooltip(); // Hide if essential components are missing
+            if (skillTooltipPanel == null) Debug.LogWarning("[BattleUI] SkillTooltipPanel is null. Cannot show tooltip.");
+            if (skillDefinition == null) Debug.LogWarning("[BattleUI] SkillDefinition is null. Cannot show tooltip.");
+            if (caster == null) Debug.LogWarning("[BattleUI] Caster is null. Cannot retrieve rank data for tooltip.");
+            return;
+        }
+
+        Hero hero = caster as Hero;
+        if (hero == null)
+        {
+            Debug.LogWarning($"[BattleUI] Caster {caster.GetName()} is not a Hero. Cannot get skill rank data for tooltip.");
+            HideSkillTooltip();
+            return;
+        }
+
+        SkillRankData rankData = hero.Skills.GetSkillRankData(skillDefinition);
+        if (rankData == null)
+        {
+            Debug.LogError($"[BattleUI] Could not find SkillRankData for skill '{skillDefinition.skillNameKey}' on hero '{hero.GetName()}'. Hiding tooltip.");
+            HideSkillTooltip();
+            return;
+        }
+
+        if (skillTooltipNameText != null)
+        {
+            // Assuming you have a LocalizationManager, otherwise use skillDefinition.skillNameKey directly
+            // skillTooltipNameText.text = LocalizationManager.Instance.GetLocalizedValue(skillDefinition.skillNameKey);
+            skillTooltipNameText.text = skillDefinition.skillNameKey; // Placeholder
+        }
+
+        if (skillTooltipDescriptionText != null)
+        {
+            // Assuming you have a LocalizationManager, otherwise use rankData.editorDescriptionPreview
+            // skillTooltipDescriptionText.text = LocalizationManager.Instance.GetLocalizedValue(rankData.rankDescriptionKey);
+            skillTooltipDescriptionText.text = rankData.editorDescriptionPreview; // Placeholder
+        }
+        
+        if (skillTooltipManaCostText != null)
+        {
+            skillTooltipManaCostText.text = $"Mana: {rankData.manaCost}";
+        }
+
+        // You can add more details here:
+        // if (skillTooltipCooldownText != null) skillTooltipCooldownText.text = $"Cooldown: {rankData.cooldown}";
+        // if (skillTooltipAccuracyText != null) skillTooltipAccuracyText.text = $"ACC Mod: {rankData.accuracyMod}%";
+        // if (skillTooltipCritText != null) skillTooltipCritText.text = $"Crit Mod: {rankData.critMod}%";
+
+        skillTooltipPanel.SetActive(true);
+        Debug.Log($"[BattleUI] Showing tooltip for skill: {skillDefinition.skillNameKey}");
+    }
+
+    public void HideSkillTooltip()
+    {
+        if (skillTooltipPanel != null)
+        {
+            skillTooltipPanel.SetActive(false);
+        }
+        Debug.Log("[BattleUI] Hiding skill tooltip.");
     }
 
     public void ShowDamageNumber(Character target, int amount, DamageNumberType type, ElementType elementType = ElementType.Physical)

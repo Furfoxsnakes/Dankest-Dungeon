@@ -23,15 +23,16 @@ MonoBehaviour:
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
-    editorDescriptionPreview: 
+    editorDescriptionPreview: Pull a target from ranged (back 2 slots) towards you
+      by 1 slot. Has a 2 turn cooldown. Can only be performed from a melee position.
     manaCost: 0
-    cooldown: 0
+    cooldown: 2
     accuracyMod: 0
     critMod: 0
     effects:
     - effectType: 6
       elementType: 0
-      baseValue: 0
+      baseValue: -1
       scalingStat: 12
       scalingMultiplier: 1
       duration: 1

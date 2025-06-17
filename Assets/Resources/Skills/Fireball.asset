@@ -24,7 +24,8 @@ MonoBehaviour:
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
-    editorDescriptionPreview: 
+    editorDescriptionPreview: Lobs a fireball at the target, doing damage and setting
+      the target on fire.
     manaCost: 15
     cooldown: 0
     accuracyMod: 0

@@ -17,11 +17,11 @@ public struct HealEffectResult
 
 public struct StatModEffectResult
 {
-	public StatType statToModify;
-	public float modValue;
-	public int duration;
-	public bool isBuff;
-	public bool success;
+    public StatType statToModify;
+    public float modValue;
+    public int duration;
+    public bool isBuff;
+    public bool success;
 }
 
 public struct StatusEffectApplicationResult
@@ -32,4 +32,15 @@ public struct StatusEffectApplicationResult
     public bool success;
     public ElementType elementType; // This is already here, ensure it's populated
     public float potency; // Potentially add potency if status effects scale (e.g. DoT damage per tick)
+}
+
+// Add this new struct
+public struct MoveTargetEffectResult
+{
+    public Character target;
+    public bool success;
+    public int requestedRanksToMove;
+    public int actualRanksMoved;
+    public int originalRank;
+    public int newRank;
 }

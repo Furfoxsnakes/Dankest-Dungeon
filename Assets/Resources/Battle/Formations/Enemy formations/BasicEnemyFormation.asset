@@ -18,12 +18,6 @@ MonoBehaviour:
   - position: 0
     characterPrefab: {fileID: 8654588658074069567, guid: 7cdffb4860bd1874282aee8ed58b1c15, type: 3}
     weight: 100
-  - position: 1
-    characterPrefab: {fileID: 8654588658074069567, guid: 7cdffb4860bd1874282aee8ed58b1c15, type: 3}
-    weight: 100
-  - position: 2
-    characterPrefab: {fileID: 8654588658074069567, guid: 7cdffb4860bd1874282aee8ed58b1c15, type: 3}
-    weight: 100
   - position: 3
     characterPrefab: {fileID: 8654588658074069567, guid: 7cdffb4860bd1874282aee8ed58b1c15, type: 3}
     weight: 100

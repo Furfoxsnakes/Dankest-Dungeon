@@ -23,7 +23,8 @@ MonoBehaviour:
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
-    editorDescriptionPreview: 
+    editorDescriptionPreview: A pillar of flame errupts from the ground, hitting
+      all enemies for fire damage.
     manaCost: 30
     cooldown: 0
     accuracyMod: 0

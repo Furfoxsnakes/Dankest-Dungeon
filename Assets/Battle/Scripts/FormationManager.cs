@@ -216,4 +216,91 @@ public class FormationManager : MonoBehaviour
         Debug.LogWarning("Attempted to get rank of a null character. Returning -1.");
         return -1;
     }
+
+    /// <summary>
+    /// Attempts to move a character within their formation.
+    /// </summary>
+    /// <param name="characterToMove">The character to be moved.</param>
+    /// <param name="ranksToMove">Number of ranks to move. Positive to push (towards higher index/back), negative to pull (towards lower index/front).</param>
+    /// <returns>True if the character was successfully moved, false otherwise.</returns>
+    public bool TryMoveCharacter(Character characterToMove, int ranksToMove)
+    {
+        if (characterToMove == null || ranksToMove == 0)
+        {
+            Debug.LogWarning("[FormationManager] TryMoveCharacter called with null character or zero movement.");
+            return false;
+        }
+
+        List<Character> teamCharacters;
+        bool isPlayerTeam = spawnedPlayerCharacters.Contains(characterToMove);
+        Vector3 formationBaseStartPosition;
+
+        if (isPlayerTeam)
+        {
+            teamCharacters = spawnedPlayerCharacters;
+            formationBaseStartPosition = heroStartPosition;
+        }
+        else if (spawnedEnemyCharacters.Contains(characterToMove))
+        {
+            teamCharacters = spawnedEnemyCharacters;
+            formationBaseStartPosition = enemyStartPosition;
+        }
+        else
+        {
+            Debug.LogError($"[FormationManager] Character {characterToMove.GetName()} not found in any spawned team. Cannot move.");
+            return false;
+        }
+
+        int currentRank = characterToMove.FormationPosition;
+        int newRank = currentRank + ranksToMove;
+
+        // 1. Boundary Check: Ensure new rank is within [0, MAX_POSITIONS_PER_TEAM - 1]
+        if (newRank < 0 || newRank >= MAX_POSITIONS_PER_TEAM)
+        {
+            // Debug.Log($"[FormationManager] Move for {characterToMove.GetName()} from rank {currentRank} to {newRank} is out of bounds.");
+            return false;
+        }
+
+        // 2. Occupancy Check: Ensure new rank is not occupied by another living character
+        foreach (Character member in teamCharacters)
+        {
+            if (member != characterToMove && member.IsAlive && member.FormationPosition == newRank)
+            {
+                // Debug.Log($"[FormationManager] Cannot move {characterToMove.GetName()} to rank {newRank}. Slot occupied by {member.GetName()}.");
+                return false;
+            }
+        }
+
+        // If all checks pass, move the character
+        // Debug.Log($"[FormationManager] Moving {characterToMove.GetName()} from rank {currentRank} to {newRank}.");
+        characterToMove.FormationPosition = newRank;
+
+        // Update visual transform position
+        Vector3 newWorldPosition;
+        float xOffset;
+
+        if (isPlayerTeam)
+        {
+            // Player: Logical Rank 0 is far right, Logical Rank 3 is far left.
+            // Visual offset from heroStartPosition (left anchor): (MAX_POSITIONS_PER_TEAM - 1 - newRank)
+            xOffset = (MAX_POSITIONS_PER_TEAM - 1 - newRank) * spaceBetweenCharacters;
+            newWorldPosition = new Vector3(formationBaseStartPosition.x + xOffset, formationBaseStartPosition.y, formationBaseStartPosition.z);
+        }
+        else // Enemy Formation
+        {
+            // Enemy: Logical Rank 0 is far left, Logical Rank 3 is far right.
+            // Visual offset from enemyStartPosition (left anchor): newRank
+            xOffset = newRank * spaceBetweenCharacters;
+            newWorldPosition = new Vector3(formationBaseStartPosition.x + xOffset, formationBaseStartPosition.y, formationBaseStartPosition.z);
+        }
+        
+        // You might want to animate this movement instead of an instant teleport
+        // For example, using a Coroutine and Vector3.Lerp or a tweening library.
+        characterToMove.transform.position = newWorldPosition;
+
+        // Optional: Trigger an event if other systems need to react to position changes.
+        // OnCharacterMoved?.Invoke(characterToMove, currentRank, newRank);
+
+        return true;
+    }
 }

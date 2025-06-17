@@ -11,6 +11,7 @@ public class CombatSystem : MonoBehaviour
     [SerializeField] private ActionSequenceHandler actionSequenceHandler;
     [SerializeField] private TargetingSystem targetingSystem;
     [SerializeField] private BattleUI battleUI; // Assign in Inspector
+    [SerializeField] private FormationManager formationManager; // <<< ADD THIS LINE, assign in Inspector
 
     private List<Character> _playerTeamCharacters;
     private List<Character> _enemyTeamCharacters;
@@ -20,23 +21,26 @@ public class CombatSystem : MonoBehaviour
         if (battleUI == null)
         {
             Debug.LogError("[CombatSystem] BattleUI is not assigned in the Inspector!");
-            // Optionally, try to find it as a fallback, but Inspector assignment is preferred
-            // battleUI = FindFirstObjectByType<BattleUI>();
         }
 
-        if (skillProcessor == null) // Ensure skillProcessor is assigned or found
+        if (formationManager == null) // <<< ADD THIS CHECK
+        {
+            Debug.LogError("[CombatSystem] FormationManager is not assigned in the Inspector!");
+        }
+
+        if (skillProcessor == null) 
             skillProcessor = GetComponent<SkillEffectProcessor>() ?? gameObject.AddComponent<SkillEffectProcessor>();
         
-        // Initialize SkillEffectProcessor with BattleUI
         if (skillProcessor != null)
         {
-            if (battleUI != null)
+            if (battleUI != null && formationManager != null) // <<< UPDATE CONDITION
             {
-                skillProcessor.Initialize(battleUI);
+                // Pass both BattleUI and FormationManager
+                skillProcessor.Initialize(battleUI, formationManager); // <<< MODIFIED CALL
             }
             else
             {
-                Debug.LogError("[CombatSystem] Cannot initialize SkillEffectProcessor because BattleUI is missing.");
+                Debug.LogError("[CombatSystem] Cannot initialize SkillEffectProcessor because BattleUI or FormationManager is missing.");
             }
         }
         else
@@ -45,12 +49,11 @@ public class CombatSystem : MonoBehaviour
         }
         
         if (targetingSystem == null)
-            targetingSystem = new TargetingSystem(); // Or GetComponent if it becomes a MonoBehaviour
+            targetingSystem = new TargetingSystem(); 
 
         if (actionSequenceHandler == null)
             actionSequenceHandler = GetComponent<ActionSequenceHandler>() ?? gameObject.AddComponent<ActionSequenceHandler>();
         
-        // Initialize handlers with necessary dependencies
         actionSequenceHandler.Initialize(this, skillProcessor, targetingSystem);
     }
     
@@ -63,15 +66,24 @@ public class CombatSystem : MonoBehaviour
         
         foreach (var character in players) { ValidateCharacter(character, "Player"); }
         foreach (var character in enemies) { ValidateCharacter(character, "Enemy"); }
+
+        // Initialize TargetingSystem with teams here if not done elsewhere or if it needs re-initialization
+        if (targetingSystem != null)
+        {
+            targetingSystem.InitializeTeams(_playerTeamCharacters, _enemyTeamCharacters);
+        }
     }
 
+    // This InitializeTeams method seems redundant if the above Initialize does the same.
+    // If it's called separately, ensure targetingSystem is also updated.
     public void InitializeTeams(List<Character> playerTeam, List<Character> enemyTeam)
     {
         _playerTeamCharacters = playerTeam;
         _enemyTeamCharacters = enemyTeam;
-        // Pass team data to TargetingSystem
-        targetingSystem.InitializeTeams(_playerTeamCharacters, _enemyTeamCharacters);
-        // If ActionSequenceHandler needs direct team lists, pass them here too or provide getters.
+        if (targetingSystem != null)
+        {
+            targetingSystem.InitializeTeams(_playerTeamCharacters, _enemyTeamCharacters);
+        }
     }
     
     private void ValidateCharacter(Character character, string type)

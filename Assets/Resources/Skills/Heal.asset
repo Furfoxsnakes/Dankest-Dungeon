@@ -23,7 +23,7 @@ MonoBehaviour:
   ranks:
   - rankLevel: 1
     rankDescriptionKey: 
-    editorDescriptionPreview: 
+    editorDescriptionPreview: Heal the target with a holy radiance.
     manaCost: 25
     cooldown: 0
     accuracyMod: 0

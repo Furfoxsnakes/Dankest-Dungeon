@@ -2,14 +2,12 @@ using UnityEngine;
 using DankestDungeon.Skills; // Assuming StatType and other enums are here
 using DankestDungeon.StatusEffects; // For StatusEffectSO, ActiveStatusEffect, StatusEffectTickType
 using DankestDungeon.Characters;   // For Character, StatType, TemporaryModifier
-
-// It's good practice to include using directives for types used in public method signatures
-// if they are in different namespaces, though BattleUI might be in the global namespace or a common one.
-// using YourNamespace.UI; // If BattleUI is in a specific namespace
+using UnityEngine; // Required for MonoBehaviour, Debug, etc.
 
 public class SkillEffectProcessor : MonoBehaviour
 {
     private BattleUI _battleUI;
+    private FormationManager _formationManager; // This field should already exist
 
     [Header("Global Settings")]
     [SerializeField] private float baseCritMultiplier = 1.5f; // Make sure this is used by your CalculateDamageValue
@@ -262,7 +260,7 @@ public class SkillEffectProcessor : MonoBehaviour
                         sourceName = $"{definition.statusNameKey} (Tick)"
                     };
                     target.AddTemporaryModifier(tickModifier);
-                    Debug.Log($"[SkillEffectProcessor] Status '{definition.statusNameKey}' (Tick) applied temporary modifier to {statToMod} by {modValue} for 1 duration to {target.GetName()}.");
+                    Debug.Log($"[SKILL EFFECT PROCESSOR] Status '{definition.statusNameKey}' (Tick) applied temporary modifier to {statToMod} by {modValue} for 1 duration to {target.GetName()}.");
                 }
                 else
                 {
@@ -278,10 +276,72 @@ public class SkillEffectProcessor : MonoBehaviour
         }
     }
 
-    public void Initialize(BattleUI battleUI)
+    public MoveTargetEffectResult ProcessMoveTargetEffect(Character caster, Character target, SkillEffectData effectData)
+    {
+        if (target == null || !target.IsAlive || caster == null)
+        {
+            Debug.LogWarning($"[SkillEffectProcessor] ProcessMoveTargetEffect: Invalid target or caster. Target: {target?.GetName()}, Caster: {caster?.GetName()}");
+            return new MoveTargetEffectResult { 
+                target = target, 
+                success = false, 
+                requestedRanksToMove = Mathf.RoundToInt(effectData.baseValue), 
+                actualRanksMoved = 0,
+                originalRank = target != null ? target.FormationPosition : -1,
+                newRank = target != null ? target.FormationPosition : -1
+            };
+        }
+
+        if (_formationManager == null)
+        {
+            Debug.LogError("[SkillEffectProcessor] FormationManager is not initialized. Cannot process MoveTarget effect.");
+            return new MoveTargetEffectResult { 
+                target = target, 
+                success = false, 
+                requestedRanksToMove = Mathf.RoundToInt(effectData.baseValue), 
+                actualRanksMoved = 0,
+                originalRank = target.FormationPosition,
+                newRank = target.FormationPosition
+            };
+        }
+
+        int ranksToMove = Mathf.RoundToInt(effectData.baseValue);
+        if (ranksToMove == 0)
+        {
+            // Debug.Log($"[SkillEffectProcessor] MoveTarget effect on {target.GetName()} has 0 ranks to move. No action taken.");
+            return new MoveTargetEffectResult {
+                target = target,
+                success = false, // Or true if "0 ranks moved" is considered a success of doing nothing
+                requestedRanksToMove = 0,
+                actualRanksMoved = 0,
+                originalRank = target.FormationPosition,
+                newRank = target.FormationPosition
+            };
+        }
+
+        int originalRank = target.FormationPosition;
+        bool moveSuccess = _formationManager.TryMoveCharacter(target, ranksToMove);
+        int newRank = target.FormationPosition; // Get the rank after attempting the move
+        int actualRanksMoved = newRank - originalRank;
+
+        Debug.Log($"[SKILL PROCESSOR] MoveTarget effect on {target.GetName()}: Requested {ranksToMove}, Moved {actualRanksMoved} (Success: {moveSuccess}). From {originalRank} to {newRank}");
+
+        return new MoveTargetEffectResult
+        {
+            target = target,
+            success = moveSuccess,
+            requestedRanksToMove = ranksToMove,
+            actualRanksMoved = actualRanksMoved,
+            originalRank = originalRank,
+            newRank = newRank
+        };
+    }
+
+    public void Initialize(BattleUI battleUI, FormationManager formationManager) 
     {
         _battleUI = battleUI;
-        // Add any other initialization logic here
-        Debug.Log("[SkillEffectProcessor] Initialized with BattleUI.");
+        _formationManager = formationManager; 
+        if (_battleUI == null) Debug.LogError("[SkillEffectProcessor] BattleUI is null during initialization.");
+        if (_formationManager == null) Debug.LogError("[SkillEffectProcessor] FormationManager is null during initialization.");
+        // Debug.Log("[SkillEffectProcessor] Initialized."); // Already present
     }
 }

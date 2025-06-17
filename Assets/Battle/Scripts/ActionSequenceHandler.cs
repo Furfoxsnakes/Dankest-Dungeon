@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DankestDungeon.Skills; // Assuming this namespace for Skill, SkillEffectData etc.
+using Random = UnityEngine.Random;
 
 public class ActionSequenceHandler : MonoBehaviour
 {
@@ -404,7 +405,7 @@ public class ActionSequenceHandler : MonoBehaviour
         Character actor, Character target, SkillDefinitionSO skillDef, SkillEffectData effectData, SkillRankData rankData, Action onEffectAppliedToTarget)
     {
         _activeSequences++;
-        Debug.Log($"[COMBAT] Processing effect '{effectData.effectType}' from skill '{skillDef.skillNameKey}' on target '{target.GetName()}' by actor '{actor.GetName()}'");
+        Debug.Log($"[ASH] Processing effect '{effectData.effectType}' from skill '{skillDef.skillNameKey}' on target '{target.GetName()}' by actor '{actor.GetName()}'");
 
         // --- HIT ANIMATION ---
         bool playedAnimation = false;
@@ -413,88 +414,136 @@ public class ActionSequenceHandler : MonoBehaviour
         {
             bool targetAnimationFinished = false;
 
-            if (effectData.effectType == SkillEffectType.Damage || effectData.effectType == SkillEffectType.DebuffStat) // Fallback to generic "Hit" for these types
+            // Example: Only play generic hit for damage/debuff if no specific target animation is defined for the skill/effect
+            if (effectData.effectType == SkillEffectType.Damage || effectData.effectType == SkillEffectType.DebuffStat /* Add other types that should trigger a generic hit */)
             {
-                Debug.Log($"[ASH] Preparing generic target 'Hit' animation for {target.GetName()} (effect type based, as skill definition does not specify a target animation).");
+                // Consider adding a field to SkillEffectData or SkillDefinitionSO for target impact animation
+                // For now, using a generic "Hit"
+                Debug.Log($"[ASH] Preparing generic target 'Hit' animation for {target.GetName()} for effect type {effectData.effectType}.");
                 target.RegisterExternalAnimationCallback(() => {
                      Debug.Log($"[ASH] EXTERNAL CALLBACK: Target ({target.GetName()}) animation 'Hit' (from TakeHit) finished.");
                     targetAnimationFinished = true;
                 });
-                target.TakeHit(); // Assumes TakeHit() uses the external callback system and plays a "Hit" animation
+                target.TakeHit(); 
                 yield return new WaitUntil(() => targetAnimationFinished);
-                Debug.Log($"[COMBAT] Target ({target.GetName()}) confirmed completion of 'Hit' animation (from TakeHit).");
+                Debug.Log($"[ASH] Target ({target.GetName()}) confirmed completion of 'Hit' animation (from TakeHit).");
                 
-                // Ensure the target returns to Idle animation state after the hit animation
-                if (target.IsAlive) // Check again, as effects haven't been applied yet but good practice
+                if (target.IsAlive) 
                 {
                     Debug.Log($"[ASH] Setting target {target.GetName()} to Idle animation after 'Hit'.");
-                    target.PlayAnimation(AnimationTriggerName.Idle, null); // Assuming AnimationTriggerName.Idle exists
+                    target.PlayAnimation(AnimationTriggerName.Idle, null); 
                 }
                 playedAnimation = true;
             }
-            // Add other 'else if' blocks here if other effect types should trigger specific target animations
-            // and ensure they also reset to Idle if necessary.
+            // Note: MoveTarget might not have a "hit" animation on the target, or it might be part of the move itself.
+            // If MoveTarget should cause the target to play a "being pushed/pulled" animation, add logic here.
         }
         
-        if (target.IsAlive && !playedAnimation)  // MODIFIED: Was target.IsAlive()
+        if (target.IsAlive && !playedAnimation)
         {
-             Debug.Log($"[COMBAT] No specific hit animation played for target ({target.GetName()}) for effect '{effectData.effectType}'.");
+             Debug.Log($"[ASH] No specific hit animation played for target ({target.GetName()}) for effect '{effectData.effectType}'.");
         }
-        else if (!target.IsAlive) // MODIFIED: Was !target.IsAlive()
+        else if (!target.IsAlive)
         {
-            Debug.Log($"[COMBAT] Target ({target.GetName()}) is not alive, skipping hit animation for effect '{effectData.effectType}'.");
+            Debug.Log($"[ASH] Target ({target.GetName()}) is not alive, skipping hit animation for effect '{effectData.effectType}'.");
         }
         
-        // --- SFX for impact ---
-        // if (effectData.impactSound != null) // SkillEffectData does not have impactSound
-        // {
-        //     // AudioManager.Instance.PlaySound(effectData.impactSound);
-        //      Debug.Log($"[COMBAT] Played impact sound for effect '{effectData.effectType}' on {target.GetName()}");
-        // }
-
-        // --- APPLY EFFECT LOGIC (Damage, Heal, Buff, Debuff, etc.) ---
-        // This part happens AFTER the hit animation (if any) has completed.
-        if (target.IsAlive || effectData.effectType == SkillEffectType.Revive) // MODIFIED: Was target.IsAlive() // Example: Revive can apply to dead targets
+        // --- APPLY EFFECT LOGIC ---
+        if (target.IsAlive || effectData.effectType == SkillEffectType.Revive || effectData.effectType == SkillEffectType.MoveTarget) // Allow MoveTarget on alive targets
         {
-            switch (effectData.effectType)
+            // Check chance for the effect to apply
+            if (Random.value <= effectData.chance)
             {
-                case SkillEffectType.Damage:
-                    DamageEffectResult damageResult = skillProcessor.CalculateDamageEffect(actor, target, effectData, rankData);
-                    skillProcessor.ApplyAndDisplayDamage(target, damageResult); // Shows damage number
-                    Debug.Log($"[COMBAT] Damage effect processed for {target.GetName()}. Crit: {damageResult.isCrit}, Final Damage: {damageResult.finalDamage}");
-                    break;
-                case SkillEffectType.Heal:
-                    HealEffectResult healResult = skillProcessor.CalculateHealEffect(actor, target, effectData, rankData);
-                    skillProcessor.ApplyAndDisplayHeal(target, healResult); // Shows heal number
-                    Debug.Log($"[COMBAT] Heal effect processed for {target.GetName()}. Crit: {healResult.isCrit}, Final Heal: {healResult.finalHeal}");
-                    break;
-                case SkillEffectType.ApplyStatusEffect:
-                    // Potency for status effect might be calculated differently or use baseValue directly
-                    float potency = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
-                    target.ApplyStatusEffect(effectData, actor, potency); // Pass effectData, caster, and calculated potency
-                    Debug.Log($"[COMBAT] Status effect '{effectData.statusEffectToApply?.statusNameKey}' processed for {target.GetName()}. Potency: {potency}");
-                    break;
-                // Add cases for Buff, Debuff, etc.
-                default:
-                    Debug.LogWarning($"[ASH] Effect type {effectData.effectType} not fully handled in ApplySkillEffectToTargetWithSequence.");
-                    break;
+                switch (effectData.effectType)
+                {
+                    case SkillEffectType.Damage:
+                        DamageEffectResult damageResult = skillProcessor.CalculateDamageEffect(actor, target, effectData, rankData);
+                        if (damageResult.success) // Check success from calculation before applying
+                        {
+                            skillProcessor.ApplyAndDisplayDamage(target, damageResult);
+                            Debug.Log($"[ASH] Damage effect processed for {target.GetName()}. Crit: {damageResult.isCrit}, Final Damage: {damageResult.finalDamage}");
+                        }
+                        else
+                        {
+                            Debug.Log($"[ASH] Damage effect calculation failed or was resisted for {target.GetName()}.");
+                            // Optionally display "Miss" or "Resist" via BattleUI
+                        }
+                        break;
+                    case SkillEffectType.Heal:
+                        HealEffectResult healResult = skillProcessor.CalculateHealEffect(actor, target, effectData, rankData);
+                        if (healResult.success)
+                        {
+                            skillProcessor.ApplyAndDisplayHeal(target, healResult);
+                            Debug.Log($"[ASH] Heal effect processed for {target.GetName()}. Crit: {healResult.isCrit}, Final Heal: {healResult.finalHeal}");
+                        }
+                        else
+                        {
+                             Debug.Log($"[ASH] Heal effect calculation failed for {target.GetName()}.");
+                        }
+                        break;
+                    case SkillEffectType.ApplyStatusEffect:
+                        float potency = skillProcessor.CalculateValueWithScaling(actor, effectData.baseValue, effectData.scalingStat, effectData.scalingMultiplier);
+                        // Assuming target.ApplyStatusEffect handles its own success/failure logging
+                        target.ApplyStatusEffect(effectData, actor, potency); 
+                        Debug.Log($"[ASH] Status effect '{effectData.statusEffectToApply?.statusNameKey}' attempt processed for {target.GetName()}. Potency: {potency}");
+                        break;
+                    
+                    // --- BEGIN ADDING MOVETARGET ---
+                    case SkillEffectType.MoveTarget:
+                        if (target.IsAlive) // Ensure target is alive for MoveTarget
+                        {
+                            MoveTargetEffectResult moveResult = skillProcessor.ProcessMoveTargetEffect(actor, target, effectData);
+                            // moveResult.success already logged by ProcessMoveTargetEffect
+                            // You can add further reactions here based on moveResult, e.g., specific sounds or UI feedback.
+                            if (moveResult.success)
+                            {
+                                Debug.Log($"[ASH] MoveTarget successful on {target.GetName()}. Moved {moveResult.actualRanksMoved} ranks.");
+                                // Potentially trigger a "moved" sound or brief visual feedback on the character
+                            }
+                            else
+                            {
+                                Debug.Log($"[ASH] MoveTarget failed or was resisted on {target.GetName()}. Requested: {moveResult.requestedRanksToMove}");
+                                // Potentially trigger a "resist move" sound/visual
+                            }
+                        }
+                        else
+                        {
+                            Debug.Log($"[ASH] MoveTarget effect: Target {target.GetName()} is not alive. Skipping.");
+                        }
+                        break;
+                    // --- END ADDING MOVETARGET ---
+
+                    // Add cases for BuffStat, DebuffStat, ClearStatusEffect, Revive etc.
+                    // Example for BuffStat:
+                    // case SkillEffectType.BuffStat:
+                    // StatModEffectResult buffResult = skillProcessor.CalculateStatModificationEffect(actor, target, effectData, rankData, true);
+                    // if (buffResult.success)
+                    // {
+                    // target.ApplyTemporaryModifier(buffResult.statToModify, buffResult.modValue, buffResult.duration, true);
+                    // Debug.Log($"[ASH] Buff {buffResult.statToModify} effect processed for {target.GetName()}.");
+                    //     // Optionally show buff icon via BattleUI
+                    // }
+                    // break;
+
+                    default:
+                        Debug.LogWarning($"[ASH] Effect type {effectData.effectType} not fully handled in ApplySkillEffectToTargetWithSequence.");
+                        break;
+                }
+            }
+            else
+            {
+                Debug.Log($"[ASH] Effect '{effectData.effectType}' on {target.GetName()} resisted due to chance (Rolled > {effectData.chance}).");
+                // Optionally display "Resisted" via BattleUI for the specific effect type
             }
 
-            // Check for death after applying the effect
-            if (effectData.effectType == SkillEffectType.Damage && !target.IsAlive) // MODIFIED: Was !target.IsAlive()
+            if (effectData.effectType == SkillEffectType.Damage && !target.IsAlive)
             {
-                Debug.Log($"[COMBAT] Target {target.GetName()} died as a result of {skillDef.skillNameKey}'s effect '{effectData.effectType}'.");
-                // Optionally, play death animation (which would also need a wait)
-                // bool deathAnimComplete = false;
-                // target.RegisterExternalAnimationCallback(() => deathAnimComplete = true);
-                // target.PlayAnimation(AnimationTriggerName.Death.ToString()); // AnimationTriggerName enum needs .ToString() if PlayAnimation expects string
-                // yield return new WaitUntil(() => deathAnimComplete);
-                // Debug.Log($"[COMBAT] Target {target.GetName()} death animation complete.");
+                Debug.Log($"[ASH] Target {target.GetName()} died as a result of {skillDef.skillNameKey}'s effect '{effectData.effectType}'.");
             }
         }
         else
         {
-            Debug.Log($"[ASH] Target {target.GetName()} is dead and effect '{effectData.effectType}' cannot apply to dead targets (unless it's Revive, etc.). Skipping effect application.");
+            Debug.Log($"[ASH] Target {target.GetName()} is dead and effect '{effectData.effectType}' cannot apply (unless Revive, etc.). Skipping effect application.");
         }
 
         onEffectAppliedToTarget?.Invoke();
