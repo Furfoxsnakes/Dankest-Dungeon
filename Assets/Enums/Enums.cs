@@ -159,6 +159,19 @@ public enum AnimationTriggerName
     // Hide
 }
 
+public enum EquipmentSlot
+{
+    MainHand,
+    OffHand,
+    Chest,
+    Head,
+    Legs,
+    Feet,
+    Accessory1,
+    Accessory2
+    // Add more slots as needed
+}
+
 // Add this enum
 public enum DamageNumberType
 {

@@ -70,6 +70,7 @@
     <Compile Include="Assets\Characters\Scripts\States\DefendState.cs" />
     <Compile Include="Assets\Battle\Scripts\TurnSystem.cs" />
     <Compile Include="Assets\Characters\Scripts\CharacterStats.cs" />
+    <Compile Include="Assets\Items\Scripts\StatModifier.cs" />
     <Compile Include="Assets\Battle\Scripts\BattleAction.cs" />
     <Compile Include="Assets\Battle\Scripts\States\PlayerTurnState.cs" />
     <Compile Include="Assets\Characters\Scripts\States\HitState.cs" />
@@ -98,11 +99,13 @@
     <Compile Include="Assets\Battle\Scripts\States\VictoryState.cs" />
     <Compile Include="Assets\Shaders\FlashEffect.cs" />
     <Compile Include="Assets\UI\ActionButton.cs" />
+    <Compile Include="Assets\Items\Scripts\ItemSO.cs" />
     <Compile Include="Assets\Characters\Enemies\AI\AggressiveAI.cs" />
     <Compile Include="Assets\Battle\Scripts\States\ActionExecutionState.cs" />
     <Compile Include="Assets\Characters\Scripts\States\DeathState.cs" />
     <Compile Include="Assets\Battle\Scripts\ActionSequenceHandler.cs" />
     <Compile Include="Assets\Characters\Enemies\Enemy.cs" />
+    <Compile Include="Assets\Characters\Scripts\CharacterEquipment.cs" />
     <Compile Include="Assets\Battle\Scripts\States\StartState.cs" />
     <Compile Include="Assets\Characters\Player\Hero.cs" />
     <Compile Include="Assets\Characters\Scripts\ActiveStatusEffect.cs" />

@@ -6,6 +6,8 @@ using System.Linq;
 using Sirenix.OdinInspector;
 using DankestDungeon.Characters; // For ActiveStatusEffect
 using DankestDungeon.StatusEffects; // For StatusEffectSO
+// Add this if not already present for StatType, or ensure StatType is globally accessible
+// using DankestDungeon.Skills; // Assuming StatType is here
 
 public class Character : MonoBehaviour
 {
@@ -28,14 +30,12 @@ public class Character : MonoBehaviour
     private Action _onAnimationCompleteCallback;
 
     // === MODULES ===
-    // [BoxGroup("Modules", CenterLabel = true)] // Removed CharacterSkills field
-    // [PropertyOrder(5)]
-    // [SerializeField, InlineProperty, HideLabel] 
-    // private CharacterSkills characterSkills = new CharacterSkills(); // REMOVED
-    // public CharacterSkills Skills => characterSkills; // REMOVED
-
     private CharacterBuffs characterBuffs;
     public CharacterBuffs Buffs => characterBuffs;
+
+    [Header("Component References")] // You can use a header for clarity
+    [SerializeField] private CharacterEquipment characterEquipment; // Changed to SerializeField
+    public CharacterEquipment Equipment => characterEquipment;
 
     private List<ActiveStatusEffect> activeStatusEffects = new List<ActiveStatusEffect>();
     public IReadOnlyList<ActiveStatusEffect> ActiveStatusEffects => activeStatusEffects.AsReadOnly();
@@ -81,7 +81,7 @@ public class Character : MonoBehaviour
     protected virtual void Awake()
     {
         if (characterAnimator == null) characterAnimator = GetComponent<Animator>();
-        if (characterVisuals == null) characterVisuals = GetComponentInChildren<CharacterVisuals>(); // Attempt to find it if not assigned
+        if (characterVisuals == null) characterVisuals = GetComponentInChildren<CharacterVisuals>();
         if (characterVisuals == null) Debug.LogError($"CharacterVisuals not found for {GetName()}!");
         
         stateMachine = new StateMachine<CharacterState>();
@@ -95,14 +95,38 @@ public class Character : MonoBehaviour
         else
         {
             _currentHealth = stats.maxHealth;
-            _currentMana = stats.maxMana; // Initialize currentMana
+            _currentMana = stats.maxMana;
         }
 
         // Initialize Modules
-        // characterSkills.Initialize(GetName()); // REMOVED
         characterBuffs = new CharacterBuffs(GetName());
-        activeStatusEffects = new List<ActiveStatusEffect>(); // Initialize the list
+        activeStatusEffects = new List<ActiveStatusEffect>();
+
+        // Ensure CharacterEquipment is assigned in the Inspector
+        if (characterEquipment == null)
+        {
+            Debug.LogError($"CharacterEquipment is not assigned in the Inspector for {GetName()}! Please assign it.");
+            // Optionally, you could still try to find it or add it as a fallback,
+            // but the primary intention is now manual assignment.
+            // characterEquipment = GetComponentInChildren<CharacterEquipment>(true); // Fallback example
+            // if (characterEquipment == null) characterEquipment = gameObject.AddComponent<CharacterEquipment>(); // Further fallback
+        }
+        
+        // Optional: Subscribe to equipment changes if needed for immediate UI updates or other logic
+        // if (characterEquipment != null)
+        // {
+        //     characterEquipment.OnEquipmentChanged += HandleEquipmentChanged;
+        // }
     }
+
+    // Optional: Handler for equipment changes
+    // private void HandleEquipmentChanged()
+    // {
+    //     Debug.Log($"{GetName()}'s equipment changed. Recalculating relevant stats or notifying UI.");
+    //     // Example: Update health if MaxHealth changed
+    //     // int newMaxHealth = GetMaxHealth();
+    //     // _currentHealth = Mathf.Min(_currentHealth, newMaxHealth);
+    // }
 
     protected virtual void Start()
     {
@@ -277,15 +301,80 @@ public class Character : MonoBehaviour
     }
 
 
-    // --- Stat Getters (incorporating temporary modifiers via CharacterBuffs) ---
-    public int GetAttackPower() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.AttackPower, Stats.attackPower));
-    public int GetDefense() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.Defense, Stats.defense));
-    public int GetMagicPower() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MagicPower, Stats.magicPower));
-    public int GetMagicResistance() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MagicResistance, Stats.magicResistance));
-    public float GetCritChance() => characterBuffs.GetModifiedStatValue(StatType.CritChance, Stats.criticalChance / 100f);
-    public int GetSpeed() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.Speed, Stats.speed));
-    public int GetMaxHealth() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MaxHealth, Stats.maxHealth));
-    public int GetMaxMana() => Mathf.RoundToInt(characterBuffs.GetModifiedStatValue(StatType.MaxMana, Stats.maxMana)); // Add this line
+    // --- Stat Getters (incorporating equipment and temporary modifiers) ---
+    public int GetAttackPower()
+    {
+        float baseValue = Stats != null ? Stats.attackPower : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.AttackPower, baseValue) - baseValue; // Get only the buff's contribution
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.AttackPower) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public int GetDefense()
+    {
+        float baseValue = Stats != null ? Stats.defense : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.Defense, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.Defense) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public int GetMagicPower()
+    {
+        float baseValue = Stats != null ? Stats.magicPower : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.MagicPower, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.MagicPower) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public int GetMagicResistance()
+    {
+        float baseValue = Stats != null ? Stats.magicResistance : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.MagicResistance, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.MagicResistance) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public float GetCritChance() // Crit chance is often a percentage
+    {
+        float baseValue = Stats != null ? Stats.criticalChance / 100f : 0f; // Assuming criticalChance is stored as 5 for 5%. Added 'f' for clarity.
+        // The 'buffValue' line below was part of the issue if GetModifiedStatValue already includes baseValue.
+        // float buffValue = characterBuffs.GetModifiedStatValue(StatType.CritChance, baseValue); 
+
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.CritChance) : 0f; // Assuming items add to the percentage (e.g., 0.05 for 5%)
+
+        // For consistency with other stat calculation methods:
+        // Calculate the buff's contribution separately from the base value.
+        // This assumes GetModifiedStatValue returns the TOTAL value (base + buff),
+        // so we subtract baseValue to get just the buff's effect.
+        // If GetModifiedStatValue returns ONLY the buff amount, then you'd just add it.
+        float buffContribution = characterBuffs.GetModifiedStatValue(StatType.CritChance, baseValue) - baseValue;
+        
+        return baseValue + buffContribution + equipBonus;
+    }
+
+    public int GetSpeed()
+    {
+        float baseValue = Stats != null ? Stats.speed : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.Speed, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.Speed) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public int GetMaxHealth()
+    {
+        float baseValue = Stats != null ? Stats.maxHealth : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.MaxHealth, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.MaxHealth) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
+
+    public int GetMaxMana()
+    {
+        float baseValue = Stats != null ? Stats.maxMana : 0;
+        float buffBonus = characterBuffs.GetModifiedStatValue(StatType.MaxMana, baseValue) - baseValue;
+        float equipBonus = characterEquipment != null ? characterEquipment.GetBonusForStat(StatType.MaxMana) : 0;
+        return Mathf.RoundToInt(baseValue + buffBonus + equipBonus);
+    }
 
     public void TakeDamage(int amount)
     {

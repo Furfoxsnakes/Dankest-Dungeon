@@ -1,5 +1,57 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5546685253010496924
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7840149777608190706}
+  - component: {fileID: 1554720885538790229}
+  m_Layer: 0
+  m_Name: Equipment
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7840149777608190706
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5546685253010496924}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5620325435401606193}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1554720885538790229
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5546685253010496924}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df7e9e4d781a738419d0f9867baf5d42, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _mainHandItem: {fileID: 0}
+  _offHandItem: {fileID: 0}
+  _headItem: {fileID: 0}
+  _chestItem: {fileID: 0}
+  _legsItem: {fileID: 0}
+  _feetItem: {fileID: 0}
+  _accessory1Item: {fileID: 0}
+  _accessory2Item: {fileID: 0}
 --- !u!1 &6149558610541651603
 GameObject:
   m_ObjectHideFlags: 0
@@ -170,6 +222,7 @@ Transform:
   m_Children:
   - {fileID: 3716420962775384371}
   - {fileID: 3039039576834597206}
+  - {fileID: 7840149777608190706}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &8654588658074069567
@@ -188,6 +241,7 @@ MonoBehaviour:
   characterAnimator: {fileID: 5213369283770450585}
   debugStateTransitions: 0
   characterVisuals: {fileID: 643134311126449927}
+  characterEquipment: {fileID: 1554720885538790229}
   experienceValue: 10
   lootPrefab: {fileID: 0}
 --- !u!114 &2538651094341754136
